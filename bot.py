@@ -1,337 +1,192 @@
 import sqlite3
-import random
+import time
+import threading
+from telegram import Update, ChatPermissions
+from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+TOKEN = "8843735484:AAE_aljnuOE18YdcYfv8Qxaej-jj4SSBKGk"
+CREATOR_ID = JENERAL_41
 
-# ================= BOT TOKEN =================
+# ================= DB =================
+db = sqlite3.connect("jeneral.db", check_same_thread=False)
+cur = db.cursor()
 
-BOT_TOKEN = "8040212612:AAFZtwqyYVfc0vBjCHHnGmSHv8h_osYOnNY"
+cur.execute("""
+CREATE TABLE IF NOT EXISTS warns(
+    user_id INTEGER,
+    group_id INTEGER,
+    count INTEGER
+)
+""")
 
-# ================= DATABASE =================
+cur.execute("""
+CREATE TABLE IF NOT EXISTS settings(
+    group_id INTEGER PRIMARY KEY,
+    warn_limit INTEGER DEFAULT 3,
+    mute_time INTEGER DEFAULT 3600
+)
+""")
 
-conn = sqlite3.connect("ice_world.db", check_same_thread=False)
-cur = conn.cursor()
+cur.execute("""
+CREATE TABLE IF NOT EXISTS timers(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER,
+    run_at INTEGER,
+    repeat INTEGER,
+    interval INTEGER,
+    notify INTEGER,
+    command TEXT
+)
+""")
 
-# ================= FULL DATA =================
+db.commit()
 
-COUNTRIES = {
-"USA": "آمریکا",
-"CHINA": "چین",
-"RUSSIA": "روسیه",
-"FRANCE": "فرانسه",
-"UK": "انگلیس",
-"GERMANY": "آلمان",
-"IRAN": "ایران",
-"INDIA": "هند",
-"JAPAN": "ژاپن",
-"CANADA": "کانادا"
-}
+# ================= HELPERS =================
 
-GROUPS = [
-"FBI | اف بی آی",
-"CIA | سی آی اِی",
-"SEPAH | سپاه",
-"FATEMIYOUN | فاطمیون",
-"DARK | دارک وب",
-"PENTAGON | پنتاگون",
-"MOSSAD | موساد",
-"YAKUZA | یاکوزا",
-"ISIS | داعش"
-]
+def is_link(text):
+    return text and ("http" in text or "t.me" in text)
 
-EQUIPMENT = {
-"F35": {"price": 9000000, "atk": 140, "def": 60},
-"SU57": {"price": 8500000, "atk": 150, "def": 55},
-"S400": {"price": 12000000, "atk": 0, "def": 260},
-"T90": {"price": 3500000, "atk": 85, "def": 75},
-"CRUISE": {"price": 5000000, "atk": 130, "def": 0},
-"CYBER_TEAM": {"price": 2500000, "atk": 0, "def": 300}
-}
+def get_warn_limit(group_id):
+    cur.execute("SELECT warn_limit, mute_time FROM settings WHERE group_id=?", (group_id,))
+    row = cur.fetchone()
+    if not row:
+        cur.execute("INSERT INTO settings(group_id) VALUES (?)", (group_id,))
+        db.commit()
+        return 3, 3600
+    return row
 
-BORDERS = {
-("USA", "CANADA"): "LAND",
-("USA", "MEXICO"): "LAND",
-("USA", "RUSSIA"): "SEA",
-("IRAN", "TURKEY"): "LAND",
-("CHINA", "INDIA"): "LAND",
-("FRANCE", "UK"): "SEA"
-}
+def add_warn(user_id, group_id):
+    cur.execute("SELECT count FROM warns WHERE user_id=? AND group_id=?", (user_id, group_id))
+    row = cur.fetchone()
 
-# ================= INIT DB =================
+    if row:
+        count = row[0] + 1
+        cur.execute("UPDATE warns SET count=? WHERE user_id=? AND group_id=?",
+                    (count, user_id, group_id))
+    else:
+        count = 1
+        cur.execute("INSERT INTO warns VALUES (?, ?, ?)", (user_id, group_id, 1))
 
-def init_db():
+    db.commit()
+    return count
 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        user_id INTEGER PRIMARY KEY,
-        username TEXT,
-        country TEXT DEFAULT 'NONE',
-        group_name TEXT DEFAULT 'NONE',
-        balance INTEGER DEFAULT 10000000
-    )
-    """)
+# ================= MESSAGE =================
 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS inventory (
-        user_id INTEGER,
-        item TEXT
-    )
-    """)
+async def handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    text = msg.text or ""
+    user_id = msg.from_user.id
+    group_id = msg.chat.id
 
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS borders (
-        a TEXT,
-        b TEXT,
-        type TEXT
-    )
-    """)
+    if is_link(text):
 
-    conn.commit()
+        if user_id == CREATOR_ID:
+            return
 
-    load_borders()
+        limit, mute_time = get_warn_limit(group_id)
 
-# ================= LOAD DATA INTO DB =================
+        warns = add_warn(user_id, group_id)
 
-def load_borders():
+        await msg.delete()
 
-    cur.execute("SELECT COUNT(*) FROM borders")
-    if cur.fetchone()[0] > 0:
-        return
+        await msg.reply_text(f"🚫 لینک ممنوع\n⚠️ اخطار: {warns}/{limit}")
 
-    for (a, b), t in BORDERS.items():
-        cur.execute("INSERT INTO borders VALUES (?,?,?)", (a, b, t))
+        if warns >= limit:
+            await context.bot.restrict_chat_member(
+                group_id,
+                user_id,
+                permissions=ChatPermissions(can_send_messages=False),
+                until_date=int(time.time() + mute_time)
+            )
 
-    conn.commit()
+# ================= TIMER ENGINE =================
 
-# ================= USER =================
+def timer_engine(app):
+    while True:
+        now = int(time.time())
 
-def create_user(uid, username):
-    cur.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?,?)",
-                (uid, username))
-    conn.commit()
+        cur.execute("SELECT * FROM timers WHERE run_at<=?", (now,))
+        rows = cur.fetchall()
 
-def get_inventory(uid):
-    cur.execute("SELECT item FROM inventory WHERE user_id=?", (uid,))
-    return [i[0] for i in cur.fetchall()]
+        for tid, gid, run_at, repeat, interval, notify, cmd in rows:
 
-def add_item(uid, item):
-    cur.execute("INSERT INTO inventory VALUES (?,?)", (uid, item))
-    conn.commit()
+            if notify:
+                try:
+                    app.bot.send_message(gid, f"⏱ {cmd}")
+                except:
+                    pass
 
-# ================= POWER =================
+            if repeat == -1 or repeat > 1:
+                new_repeat = -1 if repeat == -1 else repeat - 1
+                cur.execute("""
+                    UPDATE timers SET run_at=?, repeat=? WHERE id=?
+                """, (now + interval, new_repeat, tid))
+            else:
+                cur.execute("DELETE FROM timers WHERE id=?", (tid,))
 
-def power(items):
+        db.commit()
+        time.sleep(5)
 
-    atk = 0
-    dfn = 0
-
-    for i in items:
-        if i in EQUIPMENT:
-            atk += EQUIPMENT[i]["atk"]
-            dfn += EQUIPMENT[i]["def"]
-
-    return atk, dfn
-
-# ================= CHECK BORDER =================
-
-def can_attack(a, b):
-
-    cur.execute("""
-    SELECT type FROM borders
-    WHERE (a=? AND b=?) OR (a=? AND b=?)
-    """, (a, b, b, a))
-
-    r = cur.fetchone()
-
-    if not r:
-        return False, None
-
-    return True, r[0]
-
-# ================= UI =================
-
-def menu():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 پروفایل", callback_data="profile")],
-        [InlineKeyboardButton("🌍 کشور", callback_data="country")],
-        [InlineKeyboardButton("⚔️ گروهک", callback_data="group")],
-        [InlineKeyboardButton("🛒 بازار", callback_data="market")],
-        [InlineKeyboardButton("⚔️ جنگ", callback_data="war")]
-    ])
-
-def back():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 بازگشت", callback_data="home")]
-    ])
-
-# ================= START =================
+# ================= COMMANDS =================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🤖 JENERAL ROBOT V3 ACTIVE")
 
-    user = update.effective_user
-    create_user(user.id, user.username)
+async def setwarn(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != CREATOR_ID:
+        return
 
-    await update.message.reply_text(
-        "🌍 ICE WORLD WAR FINAL SYSTEM",
-        reply_markup=menu()
-    )
+    gid = update.effective_chat.id
+    limit = int(context.args[0])
 
-# ================= CALLBACK =================
+    cur.execute("""
+        INSERT INTO settings(group_id, warn_limit)
+        VALUES(?, ?)
+        ON CONFLICT(group_id) DO UPDATE SET warn_limit=excluded.warn_limit
+    """, (gid, limit))
 
-async def cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    db.commit()
+    await update.message.reply_text("✅ تنظیم شد")
 
-    q = update.callback_query
-    await q.answer()
+async def timer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    gid = update.effective_chat.id
 
-    user = q.from_user
-    create_user(user.id, user.username)
+    try:
+        minutes = int(context.args[0])
+        command = " ".join(context.args[1:])
 
-    d = q.data
+        run_at = int(time.time()) + minutes * 60
 
-    # HOME
-    if d == "home":
-        await q.edit_message_text("🏠 منو اصلی", reply_markup=menu())
+        cur.execute("""
+            INSERT INTO timers(group_id, run_at, repeat, interval, notify, command)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (gid, run_at, 1, minutes * 60, 1, command))
 
-    # PROFILE
-    elif d == "profile":
+        db.commit()
+        await update.message.reply_text("⏱ تایمر ثبت شد")
 
-        cur.execute("SELECT country, group_name, balance FROM users WHERE user_id=?",
-                    (user.id,))
-        u = cur.fetchone()
+    except:
+        await update.message.reply_text("❌ فرمت اشتباه")
 
-        inv = get_inventory(user.id)
+# ================= RUN =================
 
-        await q.edit_message_text(f"""
-📊 پروفایل
-
-🌍 کشور: {u[0]}
-⚔️ گروهک: {u[1]}
-💰 پول: {u[2]}
-
-🧰 تجهیزات:
-{", ".join(inv) if inv else "خالی"}
-""", reply_markup=back())
-
-    # COUNTRY
-    elif d == "country":
-
-        btn = [[InlineKeyboardButton(f"{k} | {v}", callback_data=f"setc_{k}")]
-               for k, v in COUNTRIES.items()]
-
-        btn.append([InlineKeyboardButton("🔙 بازگشت", callback_data="home")])
-
-        await q.edit_message_text("🌍 انتخاب کشور", reply_markup=InlineKeyboardMarkup(btn))
-
-    elif d.startswith("setc_"):
-
-        c = d.replace("setc_", "")
-        cur.execute("UPDATE users SET country=? WHERE user_id=?", (c, user.id))
-        conn.commit()
-
-        await q.edit_message_text("✅ کشور ثبت شد", reply_markup=back())
-
-    # GROUP
-    elif d == "group":
-
-        btn = [[InlineKeyboardButton(g, callback_data=f"setg_{g.split('|')[0]}")]
-               for g in GROUPS]
-
-        btn.append([InlineKeyboardButton("🔙 بازگشت", callback_data="home")])
-
-        await q.edit_message_text("⚔️ انتخاب گروهک", reply_markup=InlineKeyboardMarkup(btn))
-
-    elif d.startswith("setg_"):
-
-        g = d.replace("setg_", "")
-        cur.execute("UPDATE users SET group_name=? WHERE user_id=?", (g, user.id))
-        conn.commit()
-
-        await q.edit_message_text("⚔️ گروهک ثبت شد", reply_markup=back())
-
-    # MARKET
-    elif d == "market":
-
-        btn = [[InlineKeyboardButton(f"{k} - {v['price']}", callback_data=f"buy_{k}")]
-               for k, v in EQUIPMENT.items()]
-
-        btn.append([InlineKeyboardButton("🔙 بازگشت", callback_data="home")])
-
-        await q.edit_message_text("🛒 بازار", reply_markup=InlineKeyboardMarkup(btn))
-
-    elif d.startswith("buy_"):
-
-        item = d.replace("buy_", "")
-        price = EQUIPMENT[item]["price"]
-
-        cur.execute("SELECT balance FROM users WHERE user_id=?", (user.id,))
-        bal = cur.fetchone()[0]
-
-        if bal < price:
-            await q.edit_message_text("❌ پول کافی نیست", reply_markup=back())
-            return
-
-        cur.execute("UPDATE users SET balance = balance - ? WHERE user_id=?",
-                    (price, user.id))
-
-        add_item(user.id, item)
-
-        await q.edit_message_text(f"✅ خرید شد: {item}", reply_markup=back())
-
-    # WAR
-    elif d == "war":
-
-        cur.execute("SELECT country FROM users WHERE user_id=?", (user.id,))
-        row = cur.fetchone()
-
-        if not row:
-            await q.edit_message_text("❌ کشور انتخاب نشده", reply_markup=back())
-            return
-
-        my_country = row[0]
-        enemy = random.choice(list(COUNTRIES.keys()))
-
-        ok, border_type = can_attack(my_country, enemy)
-
-        if not ok:
-            await q.edit_message_text("⛔ مرز بین کشورها وجود ندارد", reply_markup=back())
-            return
-
-        items = get_inventory(user.id)
-        atk, dfn = power(items)
-
-        enemy_atk = random.randint(100, 300)
-        enemy_dfn = random.randint(100, 300)
-
-        result = "WIN" if atk - enemy_dfn > enemy_atk - dfn else "LOSE"
-
-        await q.edit_message_text(f"""
-⚔️ جنگ
-
-شما: {my_country}
-دشمن: {enemy}
-نوع مرز: {border_type}
-
-ATK شما: {atk}
-DEF شما: {dfn}
-
-نتیجه: {result}
-""", reply_markup=back())
-
-# ================= MAIN =================
+def run_timer(app):
+    t = threading.Thread(target=timer_engine, args=(app,))
+    t.daemon = True
+    t.start()
 
 def main():
-
-    init_db()
-
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(cb))
+    app.add_handler(CommandHandler("setwarn", setwarn))
+    app.add_handler(CommandHandler("timer", timer))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handler))
 
-    print("🚀 FINAL ICE WORLD RUNNING")
+    run_timer(app)
 
+    print("BOT RUNNING")
     app.run_polling()
 
 if __name__ == "__main__":
-    main()
+    main() 
