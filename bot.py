@@ -1,181 +1,299 @@
+import sqlite3
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+import asyncio
+import random
 
-TOKEN = "8040212612:AAFZtwqyYVfc0vBjCHHnGmSHv8h_osYOnNY"
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+
+# ================= CONFIG =================
+
+BOT_TOKEN = "8040212612:AAFZtwqyYVfc0vBjCHHnGmSHv8h_osYOnNY"
+
+ADMIN_USERNAME = "JENERAL_41"
+
+CHANNEL_WAR = "@ICE_WORLD_WAR"
+CHANNEL_ASSETS = "@ICE_WORLD_ASSETS"
+CHANNEL_MARKET = "@ICE_WORLD_MARKET"
+
+COUNTRIES = ["USA", "FRANCE", "CHINA", "RUSSIA"]
+GROUPS = ["ISIS"]
+
+DAILY_INCOME = 5_000_000
+
+# ================= LOG =================
 
 logging.basicConfig(level=logging.INFO)
 
-# ---------------- DATA ----------------
-users = {}
+# ================= DATABASE =================
 
-def get_user(user):
-    uid = str(user.id)
-    if uid not in users:
-        users[uid] = {
-            "name": user.first_name,
-            "username": user.username,
-            "country": None,
-            "budget": 0,
-            "income": 5_000_000,
-            "happiness": 100,
-        }
-    return users[uid]
+conn = sqlite3.connect("ice_world.db", check_same_thread=False)
+cur = conn.cursor()
 
-# ---------------- START ----------------
+def init_db():
+
+    # USERS
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        username TEXT,
+        country TEXT,
+        group_name TEXT,
+        balance INTEGER DEFAULT 0,
+        happiness INTEGER DEFAULT 100,
+        inflation INTEGER DEFAULT 0
+    )
+    """)
+
+    # INVENTORY
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS inventory (
+        user_id INTEGER,
+        item TEXT
+    )
+    """)
+
+    # WARS
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS wars (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        attacker TEXT,
+        defender TEXT,
+        result TEXT
+    )
+    """)
+
+    # 🌍 BORDERS DATABASE (NEW CORE SYSTEM)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS borders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        country_a TEXT,
+        country_b TEXT,
+        type TEXT
+    )
+    """)
+
+    conn.commit()
+
+    seed_borders()
+
+# ================= BORDER SEED DATA =================
+
+def seed_borders():
+
+    cur.execute("SELECT COUNT(*) FROM borders")
+    if cur.fetchone()[0] > 0:
+        return
+
+    borders = [
+        ("USA", "CANADA", "LAND"),
+        ("USA", "MEXICO", "LAND"),
+        ("USA", "RUSSIA", "SEA"),
+
+        ("FRANCE", "GERMANY", "LAND"),
+        ("FRANCE", "UK", "SEA"),
+
+        ("CHINA", "RUSSIA", "LAND"),
+        ("CHINA", "JAPAN", "SEA"),
+
+        ("RUSSIA", "USA", "SEA"),
+        ("RUSSIA", "CHINA", "LAND")
+    ]
+
+    for a, b, t in borders:
+        cur.execute("""
+        INSERT INTO borders (country_a, country_b, type)
+        VALUES (?,?,?)
+        """, (a, b, t))
+
+    conn.commit()
+
+# ================= USERS =================
+
+def create_user(uid, username):
+    cur.execute("INSERT OR IGNORE INTO users (user_id, username) VALUES (?,?)",
+                (uid, username))
+    conn.commit()
+
+def set_country(uid, country):
+    cur.execute("UPDATE users SET country=? WHERE user_id=?",
+                (country, uid))
+    conn.commit()
+
+def set_group(uid, group):
+    cur.execute("UPDATE users SET group_name=? WHERE user_id=?",
+                (group, uid))
+    conn.commit()
+
+# ================= BORDERS LOGIC =================
+
+def has_land_route(a, b):
+
+    cur.execute("""
+    SELECT * FROM borders
+    WHERE ((country_a=? AND country_b=?) OR (country_a=? AND country_b=?))
+    AND type='LAND'
+    """, (a, b, b, a))
+
+    return cur.fetchone() is not None
+
+
+def has_sea_route(a, b):
+
+    cur.execute("""
+    SELECT * FROM borders
+    WHERE ((country_a=? AND country_b=?) OR (country_a=? AND country_b=?))
+    AND type='SEA'
+    """, (a, b, b, a))
+
+    return cur.fetchone() is not None
+
+# ================= ECONOMY =================
+
+def add_income():
+    cur.execute("UPDATE users SET balance = balance + ?", (DAILY_INCOME,))
+    conn.commit()
+
+# ================= WAR ENGINE =================
+
+def calculate_power():
+
+    attack = random.randint(50, 200)
+    defense = random.randint(50, 200)
+
+    return attack, defense
+
+
+def resolve_war(attacker_country, defender_country, transport):
+
+    atk, defn = calculate_power()
+
+    # BORDER RULE CHECK
+    if transport == "LAND":
+        if not has_land_route(attacker_country, defender_country):
+            return "NO_LAND_ROUTE"
+
+    if transport == "SEA":
+        if not has_sea_route(attacker_country, defender_country):
+            return "NO_SEA_ROUTE"
+
+    if atk > defn:
+        return "ATTACKER_WINS"
+    elif defn > atk:
+        return "DEFENDER_WINS"
+
+    return "DRAW"
+
+# ================= START =================
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_user(update.effective_user)
+
+    user = update.effective_user
+    create_user(user.id, user.username)
 
     keyboard = [
-        [InlineKeyboardButton("🌍 انتخاب کشور", callback_data="selection")],
-        [InlineKeyboardButton("💰 پروفایل", callback_data="profile")],
-        [InlineKeyboardButton("🏪 بازار", callback_data="market")]
+        ["🌍 انتخاب کشور"],
+        ["⚔️ انتخاب گروهک"],
+        ["📊 دارایی من"]
     ]
 
     await update.message.reply_text(
-        "🌍 ICE WORLD WAR BOT\nیکی از گزینه‌ها را انتخاب کنید:",
+        "🔥 ICE WORLD WAR FINAL VERSION",
+        reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    )
+
+# ================= HANDLE =================
+
+async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    text = update.message.text
+    user = update.effective_user
+
+    create_user(user.id, user.username)
+
+    if text in COUNTRIES:
+        set_country(user.id, text)
+        await update.message.reply_text(f"✅ کشور ثبت شد: {text}")
+
+    elif text in GROUPS:
+        set_group(user.id, text)
+        await update.message.reply_text(f"⚔️ گروهک ثبت شد: {text}")
+
+    elif text == "📊 دارایی من":
+
+        cur.execute("""
+        SELECT country, group_name, balance, happiness, inflation
+        FROM users WHERE user_id=?
+        """, (user.id,))
+
+        u = cur.fetchone()
+
+        if u:
+            await update.message.reply_text(f"""
+🌍 کشور: {u[0]}
+⚔️ گروهک: {u[1]}
+💰 پول: {u[2]}
+😊 رضایت: {u[3]}%
+📈 تورم: {u[4]}%
+""")
+
+# ================= ADMIN =================
+
+async def admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    if update.effective_user.username != ADMIN_USERNAME:
+        return
+
+    keyboard = [
+        [InlineKeyboardButton("📢 NEWS", callback_data="news")],
+        [InlineKeyboardButton("⚖️ UN", callback_data="un")],
+        [InlineKeyboardButton("💰 INCOME", callback_data="income")],
+        [InlineKeyboardButton("⚔️ WAR TEST", callback_data="war")]
+    ]
+
+    await update.message.reply_text(
+        "👑 FINAL ADMIN PANEL",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# ---------------- CALLBACK ----------------
-async def buttons(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+async def admin_cb(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-    user = get_user(query.from_user)
-    data = query.data
+    q = update.callback_query
+    await q.answer()
 
-    # ---------------- SELECTION ----------------
-    if data == "selection":
-        keyboard = [
-            [InlineKeyboardButton("USA | آمریکا", callback_data="set_country_USA")],
-            [InlineKeyboardButton("RUSSIA | روسیه", callback_data="set_country_RUSSIA")],
-            [InlineKeyboardButton("CHINA | چین", callback_data="set_country_CHINA")],
-            [InlineKeyboardButton("FRANCE | فرانسه", callback_data="set_country_FRANCE")]
-        ]
-        await query.edit_message_text(
-            "🌍 کشور خود را انتخاب کنید:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+    if q.data == "income":
+        add_income()
+        await q.edit_message_text("💰 INCOME ADDED")
 
-    # ---------------- SET COUNTRY ----------------
-    if data.startswith("set_country_"):
-        country = data.split("_")[2]
-        user["country"] = country
-        await query.edit_message_text(f"✅ کشور انتخاب شد: {country}")
+    elif q.data == "war":
 
-    # ---------------- PROFILE ----------------
-    if data == "profile":
-        text = f"""
-👤 پروفایل
+        result = resolve_war("USA", "FRANCE", "LAND")
 
-نام: {user['name']}
-آیدی: @{user['username']}
+        await q.edit_message_text(f"""
+⚔️ WAR RESULT TEST
 
-کشور: {user['country']}
+USA vs FRANCE
+Transport: LAND
 
-💰 بودجه: {user['budget']}
-📈 درآمد: {user['income']}
-📊 رضایت: {user['happiness']}
-"""
-        await query.edit_message_text(text)
+RESULT: {result}
+""")
 
-    # ---------------- MARKET ----------------
-    if data == "market":
-        keyboard = [
-            [InlineKeyboardButton("⚔️ تجهیزات نظامی", callback_data="military")],
-            [InlineKeyboardButton("💸 تجهیزات اقتصادی", callback_data="eco")]
-        ]
-        await query.edit_message_text(
-            "🏪 بازار",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
+# ================= MAIN =================
 
-    # ---------------- ECONOMY ----------------
-    if data == "eco":
-        keyboard = [
-            [InlineKeyboardButton("🖨 دستگاه چاپ پول", callback_data="printer")],
-            [InlineKeyboardButton("🏭 رضایت مردم", callback_data="happiness")]
-        ]
-        await query.edit_message_text(
-            "💸 اقتصادی",
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-
-    # ---------------- PRINTER ----------------
-    if data == "printer":
-        keyboard = [
-            [InlineKeyboardButton("سطح 1 - 5M", callback_data="buy_p1")],
-            [InlineKeyboardButton("سطح 2 - 10M", callback_data="buy_p2")],
-            [InlineKeyboardButton("سطح 3 - 15M", callback_data="buy_p3")],
-            [InlineKeyboardButton("سطح 4 - 15M", callback_data="buy_p4")]
-        ]
-        await query.edit_message_text("🖨 انتخاب دستگاه:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-    # ---------------- BUY PRINTER ----------------
-    if data.startswith("buy_p"):
-        level = int(data[-1])
-        prices = {1: 5_000_000, 2: 10_000_000, 3: 15_000_000, 4: 15_000_000}
-        income = {1: 2_500_000, 2: 5_000_000, 3: 7_500_000, 4: 10_000_000}
-
-        price = prices[level]
-
-        if user["budget"] >= price:
-            user["budget"] -= price
-            user["income"] += income[level]
-            await query.edit_message_text("✅ خرید موفق انجام شد")
-        else:
-            await query.edit_message_text("❌ بودجه کافی نیست")
-
-    # ---------------- HAPPINESS ----------------
-    if data == "happiness":
-        keyboard = [
-            [InlineKeyboardButton("🏭 کارخانه", callback_data="h_factory")],
-            [InlineKeyboardButton("🏡 خانه", callback_data="h_house")],
-            [InlineKeyboardButton("🚗 ماشین", callback_data="h_car")]
-        ]
-        await query.edit_message_text("📊 افزایش رضایت:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-    if data == "h_factory":
-        if user["budget"] >= 2_000_000:
-            user["budget"] -= 2_000_000
-            user["happiness"] += 20
-            await query.edit_message_text("✅ کارخانه خریداری شد")
-        else:
-            await query.edit_message_text("❌ پول کافی نیست")
-
-    if data == "h_house":
-        if user["budget"] >= 1_000_000:
-            user["budget"] -= 1_000_000
-            user["happiness"] += 10
-            await query.edit_message_text("✅ خانه خریداری شد")
-        else:
-            await query.edit_message_text("❌ پول کافی نیست")
-
-    if data == "h_car":
-        if user["budget"] >= 500_000:
-            user["budget"] -= 500_000
-            user["happiness"] += 5
-            await query.edit_message_text("✅ ماشین خریداری شد")
-        else:
-            await query.edit_message_text("❌ پول کافی نیست")
-
-# ---------------- TEXT INPUT ----------------
-async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = get_user(update.effective_user)
-
-    if update.message.text.isdigit():
-        pass  # فعلاً برای نسخه آزمایشی ساده نگه داشتیم
-
-# ---------------- MAIN ----------------
 def main():
-    app = Application.builder().token(TOKEN).build()
+
+    init_db()
+
+    app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(buttons))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    app.add_handler(CommandHandler("admin", admin))
 
-    print("ICE WORLD WAR Bot Started...")
+    app.add_handler(CallbackQueryHandler(admin_cb))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+
+    print("🚀 ICE WORLD FINAL SYSTEM RUNNING")
+
     app.run_polling()
 
 if __name__ == "__main__":
