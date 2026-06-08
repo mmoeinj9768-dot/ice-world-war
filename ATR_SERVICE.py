@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 
 # ================= CONFIG =================
-TOKEN = "8848184643:AAFdHUjRZ82GgbWAw5YHxEkGQKjUDNM3UFM"
+TOKEN = "8848184643:AAGGfm6abDkw_pgOgdoYZxCLu4ewAC4h_xc"
 ADMIN_ID = 7700419184
 
 # ================= DATABASE =================
