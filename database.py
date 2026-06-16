@@ -3,13 +3,12 @@
 
 import sqlite3
 from datetime import datetime, timedelta
-from config import DATABASE_NAME, AD_PRICE_PER_DAY
+from config import DATABASE_NAME, AD_PRICE_PER_DAY, CHANNEL_USERNAME
 
 def init_db():
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     
-    # جدول ریمیکس‌ها
     c.execute('''CREATE TABLE IF NOT EXISTS remixes (
         code INTEGER PRIMARY KEY,
         file_path TEXT NOT NULL,
@@ -22,23 +21,21 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # جدول کانال‌های عضویت اجباری
     c.execute('''CREATE TABLE IF NOT EXISTS required_channels (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         channel_link TEXT NOT NULL,
         display_name TEXT NOT NULL,
         expires_at TIMESTAMP,
-        is_active INTEGER DEFAULT 1
+        is_active INTEGER DEFAULT 1,
+        is_permanent INTEGER DEFAULT 0
     )''')
     
-    # جدول ادمین‌ها
     c.execute('''CREATE TABLE IF NOT EXISTS admins (
         user_id INTEGER PRIMARY KEY,
         added_by INTEGER,
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # جدول کاربران و ریمیکس‌های دریافت شده
     c.execute('''CREATE TABLE IF NOT EXISTS user_remixes (
         user_id INTEGER,
         remix_code INTEGER,
@@ -46,16 +43,14 @@ def init_db():
         PRIMARY KEY (user_id, remix_code)
     )''')
     
-    # جدول رای‌ها (پیشنهاد 👍👎)
     c.execute('''CREATE TABLE IF NOT EXISTS remix_votes (
         user_id INTEGER,
         remix_code INTEGER,
-        vote INTEGER,  -- 1 = 👍 , -1 = 👎
+        vote INTEGER,
         voted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (user_id, remix_code)
     )''')
     
-    # جدول کاربران (برای ذخیره تمام کاربرانی که ربات را استارت کردند)
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
         username TEXT,
@@ -63,7 +58,6 @@ def init_db():
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
-    # جدول سیستم دعوت دوستان (پیشنهاد ۶)
     c.execute('''CREATE TABLE IF NOT EXISTS referrals (
         referrer_id INTEGER,
         referred_id INTEGER PRIMARY KEY,
@@ -73,22 +67,24 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS referral_rewards (
         user_id INTEGER PRIMARY KEY,
         reward_active_until TIMESTAMP,
-        reward_type TEXT  -- 'referrer' or 'referred'
+        reward_type TEXT
     )''')
     
-    # جدول تنظیمات
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
     )''')
     
-    # اضافه کردن تنظیمات پیش‌فرض
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ad_price_per_day', ?)", (str(AD_PRICE_PER_DAY),))
+    
+    # افزودن کانال اصلی به عنوان عضویت دائمی
+    channel_link = f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
+    c.execute("INSERT OR IGNORE INTO required_channels (channel_link, display_name, expires_at, is_active, is_permanent) VALUES (?, ?, ?, ?, ?)",
+              (channel_link, "کانال اصلی", None, 1, 1))
     
     conn.commit()
     conn.close()
 
-# ========== توابع ریمیکس ==========
 def add_remix(code, file_path, title, artist, cover_path):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -105,8 +101,16 @@ def get_remix(code):
     conn.close()
     return result
 
+def delete_remix(code):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("DELETE FROM remixes WHERE code = ?", (code,))
+    c.execute("DELETE FROM user_remixes WHERE remix_code = ?", (code,))
+    c.execute("DELETE FROM remix_votes WHERE remix_code = ?", (code,))
+    conn.commit()
+    conn.close()
+
 def increment_views(code, user_id):
-    """افزایش بازدید فقط اگر کاربر قبلاً این ریمیکس را دریافت نکرده باشد"""
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     c.execute("SELECT 1 FROM user_remixes WHERE user_id = ? AND remix_code = ?", (user_id, code))
@@ -149,7 +153,6 @@ def get_random_remix():
     conn.close()
     return result
 
-# ========== توابع رای‌دهی ==========
 def get_user_vote(user_id, remix_code):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -181,27 +184,43 @@ def set_user_vote(user_id, remix_code, vote):
         if vote == 1:
             c.execute("UPDATE remixes SET likes = likes + 1 WHERE code = ?", (remix_code,))
         elif vote == -1:
-            c.execute("UPDATE remixes SET dislikes = dislikes + 1 WHERE code = ?", (remix_code,))
+            c.execute("UPDATE remixes SET dislikes = dislikes - 1 WHERE code = ?", (remix_code,))
     
     conn.commit()
     conn.close()
 
-# ========== توابع کانال‌های عضویت ==========
 def add_channel(channel_link, display_name, days):
-    expires_at = datetime.now() + timedelta(days=days) if days > 0 else None
+    # بررسی وجود کانال تکراری فعال
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
-    c.execute("INSERT INTO required_channels (channel_link, display_name, expires_at, is_active) VALUES (?, ?, ?, ?)",
-              (channel_link, display_name, expires_at, 1))
+    c.execute("SELECT id FROM required_channels WHERE channel_link = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > datetime('now'))", (channel_link,))
+    existing = c.fetchone()
+    if existing:
+        conn.close()
+        return False
+    
+    expires_at = datetime.now() + timedelta(days=days) if days > 0 else None
+    c.execute("INSERT INTO required_channels (channel_link, display_name, expires_at, is_active, is_permanent) VALUES (?, ?, ?, ?, ?)",
+              (channel_link, display_name, expires_at, 1, 0))
     conn.commit()
     conn.close()
+    return True
 
-def remove_channel(channel_id):
+def remove_channel(channel_id, is_owner=False):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
+    
+    # بررسی دائمی بودن کانال
+    c.execute("SELECT is_permanent FROM required_channels WHERE id = ?", (channel_id,))
+    result = c.fetchone()
+    if result and result[0] == 1 and not is_owner:
+        conn.close()
+        return False
+    
     c.execute("DELETE FROM required_channels WHERE id = ?", (channel_id,))
     conn.commit()
     conn.close()
+    return True
 
 def get_active_channels():
     conn = sqlite3.connect(DATABASE_NAME)
@@ -214,19 +233,18 @@ def get_active_channels():
 def deactivate_expired_channels():
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
-    c.execute("UPDATE required_channels SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at <= datetime('now')")
+    c.execute("UPDATE required_channels SET is_active = 0 WHERE expires_at IS NOT NULL AND expires_at <= datetime('now') AND is_permanent = 0")
     conn.commit()
     conn.close()
 
 def get_all_channels():
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
-    c.execute("SELECT id, channel_link, display_name, expires_at, is_active FROM required_channels ORDER BY id")
+    c.execute("SELECT id, channel_link, display_name, expires_at, is_active, is_permanent FROM required_channels ORDER BY id")
     results = c.fetchall()
     conn.close()
     return results
 
-# ========== توابع ادمین ==========
 def add_admin(user_id, added_by):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -257,7 +275,6 @@ def get_all_admins():
     conn.close()
     return [r[0] for r in results]
 
-# ========== توابع کاربر ==========
 def add_user(user_id, username, first_name):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -297,7 +314,6 @@ def get_total_remix_downloads():
     conn.close()
     return result[0] if result else 0
 
-# ========== توابع سیستم دعوت (پیشنهاد ۶) ==========
 def get_user_referral_code(user_id):
     return f"REF_{user_id}"
 
@@ -334,14 +350,12 @@ def activate_referral_reward(user_id, days, reward_type):
     conn.close()
 
 def check_and_activate_referral_rewards(user_id):
-    """بررسی اگر کاربر ۵ دعوت داشته باشد، پاداش فعال می‌شود"""
     count = count_referrals(user_id)
     if count >= 5 and not has_referral_reward(user_id):
         activate_referral_reward(user_id, 10, 'referrer')
         return True
     return False
 
-# ========== توابع آمار (پیشنهاد ۷) ==========
 def get_stats():
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -375,7 +389,6 @@ def get_stats():
         'active_channels': active_channels
     }
 
-# ========== توابع تنظیمات ==========
 def get_setting(key):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()

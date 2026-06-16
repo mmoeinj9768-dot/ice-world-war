@@ -11,19 +11,6 @@ from mutagen.id3 import ID3, APIC, TIT2, TPE1, TRCK, COMM
 from PIL import Image
 from config import BOT_USERNAME, CHANNEL_USERNAME
 
-# خط جداکننده - فقط بین متن‌ها استفاده می‌شود
-SEPARATOR = "•─┅━━━┅┅ ✦ ┅┅━━━┅─•"
-
-def format_message(text, title=None):
-    """قالب‌بندی حرفه‌ای پیام‌ها با خط جداکننده (فقط بین متن‌ها)"""
-    if title:
-        return f"{title}\n\n{SEPARATOR}\n\n{text}"
-    return text
-
-def format_message_with_separator(text1, text2):
-    """دو متن با خط جداکننده بین آنها"""
-    return f"{text1}\n\n{SEPARATOR}\n\n{text2}"
-
 def create_cover_thumbnail(image_path):
     img = Image.open(image_path)
     if img.size[0] != img.size[1]:
@@ -76,13 +63,9 @@ def create_referral_link(user_id):
 def create_membership_keyboard(channels):
     keyboard = []
     for channel_id, channel_link, display_name in channels:
-        if "t.me/" in channel_link or "telegram.me/" in channel_link:
-            url = channel_link
-        else:
-            url = f"https://t.me/{channel_link.replace('@', '')}"
-        keyboard.append([InlineKeyboardButton(f"🔰 {display_name}", url=url)])
+        keyboard.append([InlineKeyboardButton(f"عضویت {display_name} 🔰", url=channel_link)])
     
-    keyboard.append([InlineKeyboardButton("✅ عضو شدم", callback_data="check_membership")])
+    keyboard.append([InlineKeyboardButton("عضو شدم ✅", callback_data="check_membership")])
     return InlineKeyboardMarkup(keyboard)
 
 def create_vote_keyboard(remix_code, user_id):
@@ -112,14 +95,13 @@ def create_vote_keyboard(remix_code, user_id):
     ]
     return InlineKeyboardMarkup(keyboard)
 
-def create_main_menu_keyboard():
+# ===== کیبورد Reply برای کاربران عادی =====
+def create_user_keyboard():
     keyboard = [
-        [InlineKeyboardButton("🎲 ریمیکس تصادفی", callback_data="random_remix")],
-        [InlineKeyboardButton("🏆 ریمیکس‌های برتر", callback_data="top_remixes")],
-        [InlineKeyboardButton("📊 آمار ربات", callback_data="stats")],
-        [InlineKeyboardButton("ℹ️ راهنما", callback_data="help")]
+        [KeyboardButton("ریمیکس تصادفی 🎲"), KeyboardButton("ریمیکس‌های برتر 🏆")],
+        [KeyboardButton("آمار ربات 📊"), KeyboardButton("راهنما ℹ️")]
     ]
-    return InlineKeyboardMarkup(keyboard)
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 # ===== کیبورد Reply برای مالک =====
 def create_owner_keyboard():
@@ -129,21 +111,48 @@ def create_owner_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ===== کیبورد Reply برای پنل ادمین =====
-def create_admin_keyboard():
+# ===== کیبورد Reply برای پنل ادمین (منوی اصلی) =====
+def create_admin_main_keyboard():
     keyboard = [
-        [KeyboardButton("افزودن ریمیکس جدید")],
-        [KeyboardButton("ریمیکس‌های برتر")],
-        [KeyboardButton("افزودن کانال عضویت")],
-        [KeyboardButton("لیست کانال‌های عضویت")],
-        [KeyboardButton("حذف کانال عضویت")],
-        [KeyboardButton("افزودن ادمین")],
-        [KeyboardButton("حذف ادمین")],
-        [KeyboardButton("تنظیم نرخ تبلیغات")],
-        [KeyboardButton("آمار کامل")],
-        [KeyboardButton("بکاپ دیتابیس")],
-        [KeyboardButton("تغییر رمز پنل")],
-        [KeyboardButton("بستن پنل")]
+        [KeyboardButton("پنل ریمیکس 🎵"), KeyboardButton("پنل عضویت اجباری 🔗")],
+        [KeyboardButton("پنل ادمین 👥"), KeyboardButton("پنل تنظیمات ⚙️")],
+        [KeyboardButton("بستن پنل ❌")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# ===== کیبورد Reply برای پنل ریمیکس =====
+def create_remix_panel_keyboard():
+    keyboard = [
+        [KeyboardButton("افزودن ریمیکس جدید ➕"), KeyboardButton("ریمیکس‌های برتر 🏆")],
+        [KeyboardButton("حذف ریمیکس 🗑")],
+        [KeyboardButton("بازگشت ↩️")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# ===== کیبورد Reply برای پنل عضویت اجباری =====
+def create_channel_panel_keyboard():
+    keyboard = [
+        [KeyboardButton("افزودن کانال عضویت ➕"), KeyboardButton("حذف کانال عضویت 🗑")],
+        [KeyboardButton("لیست کانال‌های عضویت 📋")],
+        [KeyboardButton("بازگشت ↩️")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# ===== کیبورد Reply برای پنل ادمین =====
+def create_admin_management_keyboard():
+    keyboard = [
+        [KeyboardButton("افزودن ادمین ➕"), KeyboardButton("حذف ادمین 🗑")],
+        [KeyboardButton("لیست ادمین‌ها 📋")],
+        [KeyboardButton("بازگشت ↩️")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# ===== کیبورد Reply برای پنل تنظیمات =====
+def create_settings_panel_keyboard():
+    keyboard = [
+        [KeyboardButton("تنظیم نرخ تبلیغات 💰"), KeyboardButton("تغییر رمز پنل 🔐")],
+        [KeyboardButton("آمار کامل 📊"), KeyboardButton("بکاپ دیتابیس 💾")],
+        [KeyboardButton("بازگشت ↩️")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -169,38 +178,11 @@ def check_all_memberships(user_id, channels, bot):
             return False, display_name
     return True, None
 
-def extract_code_from_text(text):
-    match = re.search(r'کد\s*[:：]\s*(\d+)', text)
-    if match:
-        return int(match.group(1))
-    return None
-
 def extract_number(text):
-    """استخراج عدد از متن (حذف کاراکترهای غیرعددی)"""
     numbers = re.findall(r'\d+', text)
     if numbers:
         return int(numbers[0])
     return None
-
-def get_persian_date():
-    from datetime import datetime
-    now = datetime.now()
-    return now.strftime("%Y/%m/%d")
-
-def format_remix_info(code, title, artist, views, likes, dislikes, created_at):
-    date_str = created_at[:10] if created_at else "نامشخص"
-    
-    text = f"""🎵 {title}
-🎤 خواننده: {artist}
-🎚 کد: {code}
-📅 تاریخ انتشار: {date_str}
-
-{SEPARATOR}
-
-👁 بازدید: {views}
-👍 پسندیده: {likes}
-👎 نپسندیده: {dislikes}"""
-    return text
 
 def is_admin_or_owner(user_id, owner_id):
     from database import is_admin
