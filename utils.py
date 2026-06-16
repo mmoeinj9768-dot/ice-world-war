@@ -5,7 +5,7 @@ import os
 import re
 from datetime import datetime
 import tempfile
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC, TIT2, TPE1, TRCK, COMM
 from PIL import Image
@@ -121,22 +121,31 @@ def create_main_menu_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
+# ===== کیبورد Reply برای مالک =====
+def create_owner_keyboard():
+    keyboard = [
+        [KeyboardButton("ورود به پنل مالک 👑")],
+        [KeyboardButton("ورود به پنل کاربر عادی 👤")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# ===== کیبورد Reply برای پنل ادمین =====
 def create_admin_keyboard():
     keyboard = [
-        [InlineKeyboardButton("📀 افزودن ریمیکس جدید", callback_data="admin_add_remix")],
-        [InlineKeyboardButton("🏆 ریمیکس‌های برتر", callback_data="admin_top_remixes")],
-        [InlineKeyboardButton("🔗 افزودن کانال عضویت", callback_data="admin_add_channel")],
-        [InlineKeyboardButton("📺 لیست کانال‌های عضویت", callback_data="admin_list_channels")],
-        [InlineKeyboardButton("🗑 حذف کانال عضویت", callback_data="admin_remove_channel")],
-        [InlineKeyboardButton("👥 افزودن ادمین", callback_data="admin_add_admin")],
-        [InlineKeyboardButton("🚫 حذف ادمین", callback_data="admin_remove_admin")],
-        [InlineKeyboardButton("💰 تنظیم نرخ تبلیغات", callback_data="admin_set_price")],
-        [InlineKeyboardButton("📊 آمار کامل", callback_data="admin_full_stats")],
-        [InlineKeyboardButton("💾 بکاپ دیتابیس", callback_data="admin_backup")],
-        [InlineKeyboardButton("🔐 تغییر رمز پنل", callback_data="admin_change_password")],
-        [InlineKeyboardButton("❌ بستن", callback_data="admin_close")]
+        [KeyboardButton("افزودن ریمیکس جدید")],
+        [KeyboardButton("ریمیکس‌های برتر")],
+        [KeyboardButton("افزودن کانال عضویت")],
+        [KeyboardButton("لیست کانال‌های عضویت")],
+        [KeyboardButton("حذف کانال عضویت")],
+        [KeyboardButton("افزودن ادمین")],
+        [KeyboardButton("حذف ادمین")],
+        [KeyboardButton("تنظیم نرخ تبلیغات")],
+        [KeyboardButton("آمار کامل")],
+        [KeyboardButton("بکاپ دیتابیس")],
+        [KeyboardButton("تغییر رمز پنل")],
+        [KeyboardButton("بستن پنل")]
     ]
-    return InlineKeyboardMarkup(keyboard)
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 def check_user_in_channel(user_id, channel_link, bot):
     try:

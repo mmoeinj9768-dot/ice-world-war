@@ -7,7 +7,7 @@ import asyncio
 import shutil
 import re
 from datetime import datetime, timedelta
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from config import TOKEN, OWNER_ID, CHANNEL_USERNAME, BOT_USERNAME, ADMIN_PANEL_PASSWORD, DATABASE_NAME
 from database import *
@@ -33,6 +33,22 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     args = context.args
 
+    # ===== اگر کاربر مالک است =====
+    if user_id == OWNER_ID:
+        keyboard = create_owner_keyboard()
+        await update.message.reply_text(
+            f"""👑 خوش آمدید مالک عزیز!
+
+{CHANNEL_USERNAME}
+
+{SEPARATOR}
+
+لطفاً یکی از گزینه‌های زیر را انتخاب کنید:""",
+            reply_markup=keyboard
+        )
+        return
+
+    # ===== بررسی لینک‌های deep link =====
     if args and args[0].startswith("code_"):
         try:
             remix_code = int(args[0].split("code_")[1])
@@ -64,6 +80,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
+    # ===== پیام خوش‌آمدگویی برای کاربران عادی =====
     welcome_text = f"""🎵 به ربات EDIT 41 خوش آمدید!
 
 {CHANNEL_USERNAME}
@@ -139,7 +156,7 @@ async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYP
         await update.message.reply_text("❌ خطا در ارسال فایل! لطفاً بعداً تلاش کنید.")
 
 # ============================================================
-# تابع Callback Handler
+# تابع Callback Handler (فقط برای دکمه‌های Inline)
 # ============================================================
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -326,153 +343,162 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("👎 نظر شما ثبت شد! ممنون.", show_alert=False)
         return
 
-    # ===== پنل ادمین =====
-    if data.startswith("admin"):
-        if not (user_id == OWNER_ID or is_admin(user_id)):
-            await query.edit_message_text("⛔ شما دسترسی ادمین ندارید!")
-            return
+# ============================================================
+# تابع مدیریت پیام‌ها (برای Reply Keyboard و ورودی‌های متنی)
+# ============================================================
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text
 
-        if data == "admin_panel":
-            admin_session[user_id] = {'step': 'waiting_password'}
-            await query.edit_message_text(
-                f"""🔐 تایید امنیتی
-
-لطفاً رمز عبور پنل ادمین را وارد کنید:
+    # ===== تشخیص دکمه‌های مالک =====
+    if user_id == OWNER_ID:
+        if text == "ورود به پنل مالک 👑":
+            admin_session[user_id] = {'verified': True}
+            keyboard = create_admin_keyboard()
+            await update.message.reply_text(
+                f"""🔧 پنل مدیریت
 
 {SEPARATOR}
-
-(رمز پیش‌فرض: {ADMIN_PANEL_PASSWORD})"""
-            )
-            return
-
-        if admin_session.get(user_id, {}).get('verified') != True:
-            await query.edit_message_text("⛔ لطفاً ابتدا رمز پنل را وارد کنید!")
-            return
-
-        if data == "admin_panel_verified":
-            keyboard = create_admin_keyboard()
-            await query.edit_message_text(
-                f"""🔧 پنل مدیریت ربات
 
 لطفاً یکی از گزینه‌ها را انتخاب کنید:""",
                 reply_markup=keyboard
             )
             return
 
-        if data == "admin_add_remix":
-            context.user_data['admin_action'] = 'add_remix_code'
-            await query.edit_message_text(
-                f"""📀 افزودن ریمیکس جدید
+        if text == "ورود به پنل کاربر عادی 👤":
+            keyboard = create_main_menu_keyboard()
+            await update.message.reply_text(
+                f"""🎵 به ربات EDIT 41 خوش آمدید!
+
+{CHANNEL_USERNAME}
+بهترین کانال ادیت و ریمیکس‌های فوق‌العاده
+
+🎧 برای دریافت ریمیکس، روی دکمه‌های زیر کلیک کنید""",
+                reply_markup=keyboard
+            )
+            return
+
+    # ===== تشخیص دکمه‌های پنل ادمین (فقط برای مالک و ادمین‌ها) =====
+    if not (user_id == OWNER_ID or is_admin(user_id)):
+        return
+
+    action = context.user_data.get('admin_action')
+
+    # ===== دکمه‌های Reply Keyboard پنل ادمین =====
+    if text == "افزودن ریمیکس جدید":
+        context.user_data['admin_action'] = 'add_remix_code'
+        await update.message.reply_text(
+            f"""📀 افزودن ریمیکس جدید
 
 لطفاً کد عددی ریمیکس را ارسال کنید:
 (مثال: 15)
 
 {SEPARATOR}"""
-            )
-            return
+        )
+        return
 
-        if data == "admin_top_remixes":
-            top_views = get_top_remixes_by_views(3)
-            top_likes = get_top_remixes_by_likes(3)
+    elif text == "ریمیکس‌های برتر":
+        top_views = get_top_remixes_by_views(3)
+        top_likes = get_top_remixes_by_likes(3)
 
-            text = f"""🏆 ریمیکس‌های برتر
+        text_msg = f"""🏆 ریمیکس‌های برتر
 
 📊 پربازدیدترین:
 """
-            if top_views:
-                for i, (code, title, artist, views, likes, dislikes, created_at) in enumerate(top_views, 1):
-                    text += f"{i}. {code} - {title} - {artist}\n   👁 {views} بازدید | 👍 {likes} | 👎 {dislikes}\n"
-            else:
-                text += "هیچ ریمیکسی موجود نیست.\n"
+        if top_views:
+            for i, (code, title, artist, views, likes, dislikes, created_at) in enumerate(top_views, 1):
+                text_msg += f"{i}. {code} - {title} - {artist}\n   👁 {views} بازدید | 👍 {likes} | 👎 {dislikes}\n"
+        else:
+            text_msg += "هیچ ریمیکسی موجود نیست.\n"
 
-            text += f"""
+        text_msg += f"""
 {SEPARATOR}
 
 ❤️ محبوب‌ترین (نظر مثبت):
 """
-            if top_likes:
-                for i, (code, title, artist, views, likes, dislikes, created_at, score) in enumerate(top_likes, 1):
-                    text += f"{i}. {code} - {title} - {artist}\n   👍 {likes} | 👎 {dislikes} | امتیاز: {score}\n"
-            else:
-                text += "هیچ ریمیکسی موجود نیست."
+        if top_likes:
+            for i, (code, title, artist, views, likes, dislikes, created_at, score) in enumerate(top_likes, 1):
+                text_msg += f"{i}. {code} - {title} - {artist}\n   👍 {likes} | 👎 {dislikes} | امتیاز: {score}\n"
+        else:
+            text_msg += "هیچ ریمیکسی موجود نیست."
 
-            await query.edit_message_text(text)
-            return
+        await update.message.reply_text(text_msg)
+        return
 
-        if data == "admin_add_channel":
-            context.user_data['admin_action'] = 'add_channel_link'
-            await query.edit_message_text(
-                f"""🔗 افزودن کانال عضویت جدید
+    elif text == "افزودن کانال عضویت":
+        context.user_data['admin_action'] = 'add_channel_link'
+        await update.message.reply_text(
+            f"""🔗 افزودن کانال عضویت جدید
 
 لطفاً لینک یا یوزرنیم کانال را ارسال کنید:
 (مثال: @EDIT_41 یا https://t.me/EDIT_41)
 
 {SEPARATOR}"""
-            )
+        )
+        return
+
+    elif text == "لیست کانال‌های عضویت":
+        channels = get_all_channels()
+        if not channels:
+            await update.message.reply_text("📺 هیچ کانالی در دیتابیس وجود ندارد!")
             return
 
-        if data == "admin_list_channels":
-            channels = get_all_channels()
-            if not channels:
-                await query.edit_message_text("📺 هیچ کانالی در دیتابیس وجود ندارد!")
-                return
+        text_msg = "📺 لیست کانال‌های عضویت\n\n"
+        for ch_id, link, name, expires, active in channels:
+            status = "✅ فعال" if active else "❌ غیرفعال"
+            expiry = expires if expires else "نامحدود"
+            text_msg += f"🆔 {ch_id}\n🔹 {name}\n🔗 {link}\n📅 انقضا: {expiry}\n📊 وضعیت: {status}\n\n"
 
-            text = "📺 لیست کانال‌های عضویت\n\n"
-            for ch_id, link, name, expires, active in channels:
-                status = "✅ فعال" if active else "❌ غیرفعال"
-                expiry = expires if expires else "نامحدود"
-                text += f"🆔 {ch_id}\n🔹 {name}\n🔗 {link}\n📅 انقضا: {expiry}\n📊 وضعیت: {status}\n\n"
+        await update.message.reply_text(text_msg)
+        return
 
-            await query.edit_message_text(text)
+    elif text == "حذف کانال عضویت":
+        context.user_data['admin_action'] = 'remove_channel'
+        channels = get_all_channels()
+        if not channels:
+            await update.message.reply_text("📺 هیچ کانالی در دیتابیس وجود ندارد!")
             return
 
-        if data == "admin_remove_channel":
-            context.user_data['admin_action'] = 'remove_channel'
-            channels = get_all_channels()
-            if not channels:
-                await query.edit_message_text("📺 هیچ کانالی در دیتابیس وجود ندارد!")
-                return
+        text_msg = "🗑 حذف کانال عضویت\n\nلطفاً آیدی عددی کانال را ارسال کنید:\n\n"
+        for ch_id, link, name, expires, active in channels:
+            status = "✅" if active else "❌"
+            text_msg += f"🆔 {ch_id} - {name} {status}\n"
 
-            text = "🗑 حذف کانال عضویت\n\nلطفاً آیدی عددی کانال را ارسال کنید:\n\n"
-            for ch_id, link, name, expires, active in channels:
-                status = "✅" if active else "❌"
-                text += f"🆔 {ch_id} - {name} {status}\n"
+        await update.message.reply_text(text_msg)
+        return
 
-            await query.edit_message_text(text)
-            return
-
-        if data == "admin_add_admin":
-            context.user_data['admin_action'] = 'add_admin'
-            await query.edit_message_text(
-                f"""👥 افزودن ادمین جدید
+    elif text == "افزودن ادمین":
+        context.user_data['admin_action'] = 'add_admin'
+        await update.message.reply_text(
+            f"""👥 افزودن ادمین جدید
 
 لطفاً آیدی عددی کاربر جدید را ارسال کنید:
 (از @userinfobot بگیرید)
 
 {SEPARATOR}"""
-            )
+        )
+        return
+
+    elif text == "حذف ادمین":
+        context.user_data['admin_action'] = 'remove_admin'
+        admins = get_all_admins()
+        if not admins:
+            await update.message.reply_text("👥 هیچ ادمینی غیر از مالک وجود ندارد!")
             return
 
-        if data == "admin_remove_admin":
-            context.user_data['admin_action'] = 'remove_admin'
-            admins = get_all_admins()
-            if not admins:
-                await query.edit_message_text("👥 هیچ ادمینی غیر از مالک وجود ندارد!")
-                return
+        text_msg = "🚫 حذف ادمین\n\nلیست ادمین‌های فعلی:\n\n"
+        for admin_id in admins:
+            text_msg += f"🆔 {admin_id}\n"
 
-            text = "🚫 حذف ادمین\n\nلیست ادمین‌های فعلی:\n\n"
-            for admin_id in admins:
-                text += f"🆔 {admin_id}\n"
+        text_msg += f"\n{SEPARATOR}\n\nلطفاً آیدی عددی ادمین مورد نظر را ارسال کنید:"
+        await update.message.reply_text(text_msg)
+        return
 
-            text += f"\n{SEPARATOR}\n\nلطفاً آیدی عددی ادمین مورد نظر را ارسال کنید:"
-            await query.edit_message_text(text)
-            return
-
-        if data == "admin_set_price":
-            context.user_data['admin_action'] = 'set_price'
-            current_price = get_setting('ad_price_per_day') or "50000"
-            await query.edit_message_text(
-                f"""💰 تنظیم نرخ تبلیغات
+    elif text == "تنظیم نرخ تبلیغات":
+        context.user_data['admin_action'] = 'set_price'
+        current_price = get_setting('ad_price_per_day') or "50000"
+        await update.message.reply_text(
+            f"""💰 تنظیم نرخ تبلیغات
 
 نرخ فعلی: {current_price} تومان در روز
 
@@ -480,12 +506,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 لطفاً نرخ جدید را به تومان وارد کنید:
 (مثال: 75000)"""
-            )
-            return
+        )
+        return
 
-        if data == "admin_full_stats":
-            stats = get_stats()
-            text = f"""📊 آمار کامل ربات
+    elif text == "آمار کامل":
+        stats = get_stats()
+        text_msg = f"""📊 آمار کامل ربات
 
 👥 کل کاربران: {stats['total_users']}
 🎵 کل ریمیکس‌ها: {stats['total_remixes']}
@@ -496,26 +522,26 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 🏆 پربازدیدترین ریمیکس:
 """
-            if stats['most_viewed']:
-                code, title, artist, views = stats['most_viewed']
-                text += f"{code} - {title} - {artist} (👁 {views})"
-            else:
-                text += "هیچ ریمیکسی موجود نیست."
+        if stats['most_viewed']:
+            code, title, artist, views = stats['most_viewed']
+            text_msg += f"{code} - {title} - {artist} (👁 {views})"
+        else:
+            text_msg += "هیچ ریمیکسی موجود نیست."
 
-            text += f"""
+        text_msg += f"""
 
 ❤️ محبوب‌ترین ریمیکس:
 """
-            if stats['most_liked']:
-                code, title, artist, score = stats['most_liked']
-                text += f"{code} - {title} - {artist} (⭐ {score})"
-            else:
-                text += "هیچ ریمیکسی موجود نیست."
+        if stats['most_liked']:
+            code, title, artist, score = stats['most_liked']
+            text_msg += f"{code} - {title} - {artist} (⭐ {score})"
+        else:
+            text_msg += "هیچ ریمیکسی موجود نیست."
 
-            remixes = get_all_remixes()
-            total_likes = sum(r[4] for r in remixes) if remixes else 0
-            total_dislikes = sum(r[5] for r in remixes) if remixes else 0
-            text += f"""
+        remixes = get_all_remixes()
+        total_likes = sum(r[4] for r in remixes) if remixes else 0
+        total_dislikes = sum(r[5] for r in remixes) if remixes else 0
+        text_msg += f"""
 
 📊 آمار کلی رأی‌ها:
 👍 کل لایک‌ها: {total_likes}
@@ -523,21 +549,21 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 📈 نرخ محبوبیت:
 """
-            if total_likes + total_dislikes > 0:
-                rate = (total_likes / (total_likes + total_dislikes)) * 100
-                text += f"{rate:.1f}% لایک"
-            else:
-                text += "هنوز رأیی ثبت نشده"
+        if total_likes + total_dislikes > 0:
+            rate = (total_likes / (total_likes + total_dislikes)) * 100
+            text_msg += f"{rate:.1f}% لایک"
+        else:
+            text_msg += "هنوز رأیی ثبت نشده"
 
-            await query.edit_message_text(text)
-            return
+        await update.message.reply_text(text_msg)
+        return
 
-        if data == "admin_backup":
-            backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
-            shutil.copy(DATABASE_NAME, backup_name)
+    elif text == "بکاپ دیتابیس":
+        backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        shutil.copy(DATABASE_NAME, backup_name)
 
-            await query.edit_message_text(
-                f"""💾 بکاپ دیتابیس
+        await update.message.reply_text(
+            f"""💾 بکاپ دیتابیس
 
 ✅ فایل بکاپ با موفقیت ایجاد شد!
 
@@ -547,69 +573,44 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {SEPARATOR}
 
 ⚠️ لطفاً فایل را در جای امن ذخیره کنید."""
-            )
+        )
 
-            try:
-                with open(backup_name, 'rb') as f:
-                    await context.bot.send_document(
-                        chat_id=user_id,
-                        document=f,
-                        caption=f"💾 بکاپ دیتابیس - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-                    )
-                os.remove(backup_name)
-            except Exception as e:
-                logger.error(f"Error sending backup: {e}")
-            return
+        try:
+            with open(backup_name, 'rb') as f:
+                await context.bot.send_document(
+                    chat_id=user_id,
+                    document=f,
+                    caption=f"💾 بکاپ دیتابیس - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+            os.remove(backup_name)
+        except Exception as e:
+            logger.error(f"Error sending backup: {e}")
+        return
 
-        if data == "admin_change_password":
-            context.user_data['admin_action'] = 'change_password'
-            await query.edit_message_text(
-                f"""🔐 تغییر رمز پنل ادمین
+    elif text == "تغییر رمز پنل":
+        context.user_data['admin_action'] = 'change_password'
+        await update.message.reply_text(
+            f"""🔐 تغییر رمز پنل ادمین
 
 رمز فعلی: {ADMIN_PANEL_PASSWORD}
 
 {SEPARATOR}
 
 لطفاً رمز جدید (۴ رقمی) را وارد کنید:"""
-            )
-            return
-
-        if data == "admin_close":
-            await query.delete_message()
-            return
-
-# ============================================================
-# تابع مدیریت پیام‌ها
-# ============================================================
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if not (user_id == OWNER_ID or is_admin(user_id)):
+        )
         return
 
-    text = update.message.text
-    action = context.user_data.get('admin_action')
-
-    # تایید دو مرحله‌ای
-    if admin_session.get(user_id, {}).get('step') == 'waiting_password':
-        if text == ADMIN_PANEL_PASSWORD:
-            admin_session[user_id] = {'verified': True}
-            keyboard = create_admin_keyboard()
-            await update.message.reply_text(
-                f"""✅ رمز تأیید شد!
-
-🔧 به پنل مدیریت خوش آمدید.
-
-{SEPARATOR}""",
-                reply_markup=keyboard
-            )
-            context.user_data.pop('admin_action', None)
-        else:
-            await update.message.reply_text("❌ رمز اشتباه است! دوباره تلاش کنید.")
+    elif text == "بستن پنل":
+        keyboard = create_owner_keyboard()
+        await update.message.reply_text(
+            "✅ پنل مدیریت بسته شد.",
+            reply_markup=keyboard
+        )
+        context.user_data.pop('admin_action', None)
         return
 
-    if admin_session.get(user_id, {}).get('verified') != True:
-        await update.message.reply_text("⛔ لطفاً ابتدا با دستور /admin و وارد کردن رمز، وارد پنل شوید.")
+    # ===== ادامه مدیریت سایر ورودی‌های متنی (برای actions) =====
+    if not action:
         return
 
     # ===== افزودن ریمیکس =====
@@ -735,7 +736,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif action == 'add_channel_days':
         try:
-            # استخراج عدد از متن
             clean_text = text.strip().replace(" ", "").replace("روز", "").replace("روز", "")
             days = int(clean_text)
             
@@ -892,20 +892,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ کد معتبر نیست! یک عدد ارسال کنید.")
 
 # ============================================================
-# تابع دستور /admin
+# تابع دستور /admin (فقط برای ادمین‌ها - بدون رمز)
 # ============================================================
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id == OWNER_ID or is_admin(user_id):
-        admin_session[user_id] = {'step': 'waiting_password'}
+        keyboard = create_admin_keyboard()
         await update.message.reply_text(
-            f"""🔐 ورود به پنل مدیریت
-
-لطفاً رمز عبور پنل را وارد کنید:
+            f"""🔧 پنل مدیریت
 
 {SEPARATOR}
 
-(رمز پیش‌فرض: {ADMIN_PANEL_PASSWORD})"""
+لطفاً یکی از گزینه‌ها را انتخاب کنید:""",
+            reply_markup=keyboard
         )
     else:
         await update.message.reply_text("⛔ شما دسترسی به پنل ادمین ندارید!")
@@ -1024,7 +1023,7 @@ def main():
 
 ⚙️ قابلیت‌های فعال:
 ✅ عضویت اجباری چندگانه
-✅ پنل ادمین با تایید دو مرحله‌ای
+✅ پنل ادمین با Reply Keyboard
 ✅ آپلود ریمیکس با متادیتا
 ✅ دکمه‌های 👍 و 👎
 ✅ ریمیکس‌های برتر
@@ -1034,7 +1033,7 @@ def main():
 ✅ بکاپ خودکار
 ✅ پیام اخطار خروج از کانال
 ✅ افزودن خودکار دکمه با لینک
-✅ قالب‌بندی حرفه‌ای
+✅ تشخیص خودکار مالک
 """)
 
     app.run_polling()
