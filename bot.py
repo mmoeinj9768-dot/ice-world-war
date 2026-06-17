@@ -43,14 +43,26 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     add_user(user_id, username, first_name)
     args = context.args
+    
+    # ===== لاگ برای عیب‌یابی =====
+    logger.info(f"📩 Start from user {user_id}, args: {args}")
 
+    # ===== بررسی لینک‌های deep link =====
     if args and args[0].startswith("code_"):
         try:
-            remix_code = int(args[0].split("code_")[1])
+            # استخراج کد از args[0]
+            code_str = args[0].split("code_")[1]
+            remix_code = int(code_str)
+            logger.info(f"✅ Code extracted: {remix_code}")
             context.user_data['pending_remix'] = remix_code
             await check_and_send_remix(update, context, remix_code)
             return
-        except:
+        except ValueError as e:
+            logger.error(f"❌ ValueError extracting code from '{args[0]}': {e}")
+            await update.message.reply_text("لینک نامعتبر است ❌\nفرمت صحیح: https://t.me/EDIT_41_BOT?start=code_1")
+            return
+        except Exception as e:
+            logger.error(f"❌ Error extracting code: {e}")
             await update.message.reply_text("لینک نامعتبر است ❌")
             return
 
@@ -68,9 +80,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text(
                     f"خوش آمدید 🎉\nپاداش شما فعال شد ✅\nبه مدت ۳ روز بدون عضویت اجباری ریمیکس دانلود کنید 🎵"
                 )
-        except:
-            pass
+        except Exception as e:
+            logger.error(f"❌ Error processing referral: {e}")
 
+    # ===== اگر کاربر مالک است =====
     if user_id == OWNER_ID:
         keyboard = create_owner_keyboard()
         await update.message.reply_text(
@@ -79,6 +92,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    # ===== پیام خوش‌آمدگویی برای کاربران عادی =====
     welcome_text = f"به ربات EDIT 41 خوش آمدید 🎵\n\n{CHANNEL_USERNAME}\nبهترین کانال ادیت و ریمیکس‌های فوق‌العاده\n\nبرای دریافت ریمیکس، روی دکمه‌های زیر کلیک کنید"
     keyboard = create_user_keyboard()
     await update.message.reply_text(welcome_text, reply_markup=keyboard)
@@ -90,6 +104,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYPE, remix_code):
     user_id = update.effective_user.id
     username = update.effective_user.first_name or "کاربر"
+
+    logger.info(f"🔍 check_and_send_remix called for user {user_id}, code {remix_code}")
 
     deactivate_expired_channels()
     has_reward = has_referral_reward(user_id)
@@ -106,6 +122,7 @@ async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYP
 
     remix = get_remix(remix_code)
     if not remix:
+        logger.error(f"❌ Remix {remix_code} not found in database")
         await update.message.reply_text("ریمیکس مورد نظر یافت نشد ❌")
         return
 
@@ -125,6 +142,7 @@ async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYP
                 caption=caption,
                 reply_markup=vote_keyboard
             )
+        logger.info(f"✅ Remix {code} sent to user {user_id}")
     except Exception as e:
         logger.error(f"Error sending remix: {e}")
         await update.message.reply_text("خطا در ارسال فایل ❌ لطفاً بعداً تلاش کنید")
@@ -138,6 +156,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     user_id = query.from_user.id
     data = query.data
+
+    logger.info(f"📩 Callback received: {data} from {user_id}")
 
     if data == "check_membership":
         remix_code = context.user_data.get('pending_remix')
@@ -183,11 +203,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         caption=caption,
                         reply_markup=vote_keyboard
                     )
+                logger.info(f"✅ Remix {code} sent to user {user_id} via callback")
             except Exception as e:
-                logger.error(f"Error sending remix: {e}")
+                logger.error(f"Error sending remix via callback: {e}")
                 await context.bot.send_message(user_id, "خطا در ارسال فایل ❌")
         else:
             await context.bot.send_message(user_id, "ریمیکس یافت نشد ❌")
+            logger.error(f"❌ Remix {remix_code} not found in callback")
 
         context.user_data.pop('pending_remix', None)
         return
@@ -661,11 +683,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ لطفاً یک فایل MP3 معتبر ارسال کنید")
         return
 
-    # ===== اگر هیچ کدام نبود =====
-    if not action and not user_action:
+    # ===== ادامه مدیریت سایر admin_actionها =====
+    if not action:
         return
 
-    # ===== ادامه مدیریت سایر admin_actionها =====
     if action == 'add_remix_code':
         try:
             code = int(text.strip())
@@ -701,7 +722,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("لطفاً یک عکس ارسال کنید ❌")
 
-    # ===== حذف ریمیکس =====
     elif action == 'delete_remix':
         try:
             code = int(text.strip())
@@ -723,7 +743,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("کد معتبر نیست ❌ یک عدد ارسال کنید")
 
-    # ===== افزودن کانال =====
     elif action == 'add_channel_link':
         context.user_data['new_channel_link'] = text
         context.user_data['admin_action'] = 'add_channel_name'
@@ -765,7 +784,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             await update.message.reply_text(f"خطا ❌ {e}")
 
-    # ===== حذف کانال =====
     elif action == 'remove_channel':
         try:
             channel_id = int(text.strip())
@@ -790,7 +808,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("آیدی معتبر نیست ❌ یک عدد ارسال کنید")
 
-    # ===== افزودن ادمین =====
     elif action == 'add_admin':
         try:
             admin_id = int(text.strip())
@@ -803,7 +820,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("آیدی معتبر نیست ❌ یک عدد ارسال کنید")
 
-    # ===== حذف ادمین =====
     elif action == 'remove_admin':
         try:
             admin_id = int(text.strip())
@@ -816,7 +832,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("آیدی معتبر نیست ❌ یک عدد ارسال کنید")
 
-    # ===== تنظیم نرخ =====
     elif action == 'set_price':
         try:
             price = int(text.strip())
@@ -826,7 +841,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             await update.message.reply_text("مبلغ معتبر نیست ❌ یک عدد ارسال کنید")
 
-    # ===== تغییر رمز =====
     elif action == 'change_password':
         if len(text.strip()) >= 4:
             await update.message.reply_text(
@@ -836,7 +850,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("رمز باید حداقل ۴ کاراکتر باشد ❌")
 
-    # ===== افزودن دکمه با لینک =====
     elif text and (text.startswith("https://t.me/") or text.startswith("t.me/")):
         if CHANNEL_USERNAME.replace("@", "") in text:
             context.user_data['pending_button_link'] = text
@@ -886,10 +899,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
-# تابع مدیریت پیام‌های گروه خصوصی (پاسخ به درخواست‌ها)
+# تابع مدیریت پیام‌های گروه خصوصی
 # ============================================================
 async def handle_group_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """مدیریت پیام‌های گروه خصوصی (فقط مالک)"""
     user_id = update.effective_user.id
     logger.info(f"📩 پیام جدید در گروه از {user_id}")
     
@@ -1114,16 +1126,11 @@ def main():
 
     app.add_handler(CallbackQueryHandler(callback_handler))
 
-    # ===== ترتیب هندلرها مهم است! =====
-    # 1. اول هندلر گروه خصوصی (ریپلای)
+    # ===== ترتیب هندلرها =====
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, handle_group_messages))
-    
-    # 2. سپس هندلرهای اصلی
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_message))
     app.add_handler(MessageHandler(filters.AUDIO, handle_message))
-
-    # 3. هندلر خروج از کانال
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, handle_channel_leave))
 
     job_queue = app.job_queue
