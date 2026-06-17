@@ -5,6 +5,7 @@ import os
 import logging
 import shutil
 import re
+import datetime
 from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
@@ -72,6 +73,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = create_user_keyboard()
     await update.message.reply_text(welcome_text, reply_markup=keyboard)
 
+
 # ============================================================
 # تابع بررسی و ارسال ریمیکس
 # ============================================================
@@ -120,6 +122,7 @@ async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYP
         logger.error(f"Error sending remix: {e}")
         await update.message.reply_text("خطا در ارسال فایل ❌ لطفاً بعداً تلاش کنید")
 
+
 # ============================================================
 # تابع Callback Handler (با لاگ برای عیب‌یابی)
 # ============================================================
@@ -129,37 +132,22 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    # ===== لاگ برای عیب‌یابی =====
-    logger.info(f"📩 Callback received: data={data}, user_id={user_id}")
-
     # ===== بررسی عضویت =====
     if data == "check_membership":
-        logger.info("✅ check_membership detected!")
-        
         remix_code = context.user_data.get('pending_remix')
         if not remix_code:
             await query.edit_message_text("خطا ❌ لطفاً دوباره از لینک وارد شوید")
             return
 
-        # غیرفعال کردن کانال‌های منقضی شده
         deactivate_expired_channels()
-        
-        # دریافت کانال‌های فعال
         channels = get_active_channels()
-        logger.info(f"🔍 Active channels: {channels}")
-        
-        # بررسی پاداش دعوت
         has_reward = has_referral_reward(user_id)
-        logger.info(f"🎁 Has reward: {has_reward}")
 
-        # بررسی عضویت
         is_member = True
         if not has_reward:
             for channel_id, channel_link, display_name in channels:
-                logger.info(f"🔍 Checking channel: {channel_link}")
                 if not check_user_in_channel(user_id, channel_link, context.bot):
                     is_member = False
-                    logger.info(f"❌ User not in channel: {channel_link}")
                     break
 
         if not is_member:
@@ -168,10 +156,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_reply_markup(reply_markup=keyboard)
             return
 
-        # تأیید عضویت
         await query.edit_message_text("عضویت شما تأیید شد ✅ در حال ارسال فایل...")
 
-        # دریافت و ارسال ریمیکس
         remix = get_remix(remix_code)
         if remix:
             code, file_path, title, artist, cover_path, views, likes, dislikes, created_at = remix
@@ -191,13 +177,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         caption=caption,
                         reply_markup=vote_keyboard
                     )
-                logger.info(f"✅ Remix {remix_code} sent to user {user_id}")
             except Exception as e:
                 logger.error(f"Error sending remix: {e}")
                 await context.bot.send_message(user_id, "خطا در ارسال فایل ❌")
         else:
             await context.bot.send_message(user_id, "ریمیکس یافت نشد ❌")
-            logger.error(f"❌ Remix {remix_code} not found")
 
         context.user_data.pop('pending_remix', None)
         return
@@ -223,8 +207,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("نظر شما ثبت شد 👎 ممنون", show_alert=False)
         return
 
+
 # ============================================================
-# تابع مدیریت پیام‌ها (ادمین + کاربران عادی)
+# تابع مدیریت پیام‌ها
 # ============================================================
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -306,7 +291,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(msg)
         return
 
-    # ===== دریافت ریمیکس با کد (کاربران عادی) =====
+    # ===== دریافت ریمیکس با کد =====
     if text == "دریافت ریمیکس با کد 📥":
         context.user_data['user_action'] = 'get_remix_by_code'
         await update.message.reply_text(
@@ -318,7 +303,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ===== پیشنهاد آهنگ برای ادیت =====
     if text == "پیشنهاد آهنگ برای ادیت 📤":
-        # بررسی محدودیت ۳ روزه
         last_request = get_last_song_request(user_id)
         if last_request:
             days_diff = (datetime.now() - datetime.fromisoformat(last_request)).days
@@ -576,10 +560,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             file_id = audio.file_id
             file_name = audio.file_name or "unknown.mp3"
             
-            # ذخیره در دیتابیس
             add_song_request(user_id, file_id, file_name)
             
-            # ارسال به گروه
             user = update.effective_user
             caption = (
                 f"📥 درخواست آهنگ جدید\n\n"
@@ -864,31 +846,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # تابع مدیریت پیام‌های گروه خصوصی (پاسخ به درخواست‌ها)
 # ============================================================
 async def handle_group_messages(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """مدیریت پیام‌های گروه خصوصی (فقط مالک)"""
     user_id = update.effective_user.id
     
-    # فقط مالک اجازه دارد در گروه پاسخ دهد
     if user_id != OWNER_ID:
         return
     
-    # اگر پیام ریپلای بود و متن آن ✅ یا ❌ بود
     if update.message.reply_to_message:
         reply_to = update.message.reply_to_message
         text = update.message.text.strip()
         
-        # بررسی اینکه پیام اصلی حاوی درخواست آهنگ است
         if reply_to.audio and "درخواست آهنگ جدید" in (reply_to.caption or ""):
-            # استخراج آیدی کاربر از کپشن
             import re
             match = re.search(r'🆔 آیدی: (\d+)', reply_to.caption or "")
             if match:
                 target_user_id = int(match.group(1))
-                
-                # استخراج نام فایل
                 file_name = reply_to.audio.file_name or "آهنگ"
                 
                 if text == "✅":
-                    # تأیید درخواست
                     try:
                         await context.bot.send_message(
                             chat_id=target_user_id,
@@ -899,7 +873,6 @@ async def handle_group_messages(update: Update, context: ContextTypes.DEFAULT_TY
                         await update.message.reply_text(f"❌ خطا در ارسال پیام: {e}")
                     
                 elif text == "❌":
-                    # رد درخواست
                     try:
                         await context.bot.send_message(
                             chat_id=target_user_id,
@@ -1026,7 +999,7 @@ async def handle_channel_leave(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 # ============================================================
-# تابع بکاپ خودکار
+# تابع بکاپ خودکار (اصلاح شده با زمان ۲۴ ساعت واقعی)
 # ============================================================
 async def auto_backup(context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -1046,37 +1019,7 @@ async def auto_backup(context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
-# تابع error handler (گزارش خطای خودکار)
-# ============================================================
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
-    """گزارش خطای خودکار به مالک"""
-    try:
-        error = context.error
-        user_id = update.effective_user.id if update and update.effective_user else "ناشناس"
-        chat_id = update.effective_chat.id if update and update.effective_chat else "ناشناس"
-        
-        error_msg = (
-            f"⚠️ **خطا در ربات**\n\n"
-            f"📌 نوع خطا: `{type(error).__name__}`\n"
-            f"📝 متن خطا: `{str(error)[:200]}`\n"
-            f"👤 کاربر: `{user_id}`\n"
-            f"💬 چت: `{chat_id}`\n"
-            f"📅 زمان: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`"
-        )
-        
-        # ارسال به مالک
-        await context.bot.send_message(
-            chat_id=OWNER_ID,
-            text=error_msg,
-            parse_mode="Markdown"
-        )
-        logger.error(f"Error reported to owner: {error}")
-    except Exception as e:
-        logger.error(f"Error in error_handler: {e}")
-
-
-# ============================================================
-# تابع main
+# تابع main (با اصلاحات)
 # ============================================================
 def main():
     init_db()
@@ -1093,30 +1036,35 @@ def main():
     app.add_handler(CommandHandler("admin", admin_command))
     app.add_handler(CommandHandler("addbutton", add_button_command))
 
-    # CallbackQueryHandler برای همه دکمه‌ها (بدون pattern)
     app.add_handler(CallbackQueryHandler(callback_handler))
 
-    # MessageHandler برای پیام‌های معمولی
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_message))
     app.add_handler(MessageHandler(filters.AUDIO, handle_message))
 
-    # هندلر مخصوص گروه خصوصی (پاسخ به درخواست‌ها)
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, handle_group_messages))
-
-    # هندلر خروج از کانال
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, handle_channel_leave))
 
-    # JobQueue برای بکاپ خودکار
+    # ===== JobQueue برای بکاپ خودکار (هر ۲۴ ساعت یک بار) =====
     job_queue = app.job_queue
     if job_queue:
-        job_queue.run_repeating(auto_backup, interval=86400, first=60)
-        logger.info("✅ JobQueue برای بکاپ خودکار راه‌اندازی شد.")
+        # حذف jobهای قبلی (اگر وجود داشته باشند)
+        current_jobs = job_queue.jobs()
+        for job in current_jobs:
+            if job.name == "auto_backup":
+                job.schedule_removal()
+                logger.info("🔄 Job قبلی بکاپ حذف شد.")
+        
+        # اضافه کردن Job جدید با نام مشخص و زمان ۲۴ ساعت
+        job_queue.run_repeating(
+            auto_backup, 
+            interval=86400,  # 24 ساعت = 86400 ثانیه
+            first=60,        # اولین بار بعد از ۱ دقیقه
+            name="auto_backup"
+        )
+        logger.info("✅ JobQueue برای بکاپ خودکار (هر ۲۴ ساعت) راه‌اندازی شد.")
     else:
         logger.warning("⚠️ JobQueue در دسترس نیست! بکاپ خودکار غیرفعال است.")
-
-    # ثبت error handler
-    app.add_error_handler(error_handler)
 
     print(f"""
 ✅ ربات EDIT 41 با موفقیت روشن شد
@@ -1137,8 +1085,7 @@ def main():
 ✅ پیشنهاد آهنگ برای ادیت
 ✅ سیستم دعوت دوستان
 ✅ پنل آمار کامل
-✅ بکاپ خودکار
-✅ گزارش خطای خودکار
+✅ بکاپ خودکار (هر ۲۴ ساعت)
 ✅ پیام اخطار خروج از کانال
 ✅ افزودن خودکار دکمه با لینک
 ✅ تشخیص خودکار مالک
