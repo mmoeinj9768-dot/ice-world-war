@@ -102,7 +102,7 @@ def create_user_keyboard():
     keyboard = [
         [KeyboardButton("ریمیکس تصادفی 🎲"), KeyboardButton("ریمیکس‌های برتر 🏆")],
         [KeyboardButton("دریافت ریمیکس با کد 📥"), KeyboardButton("پیشنهاد آهنگ برای ادیت 📤")],
-        [KeyboardButton("دعوت دوستان 🎁"), KeyboardButton("راهنما ℹ️")],
+        [KeyboardButton("دعوت دوستان 🎁"), KeyboardButton("راهنما ℹ️")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
