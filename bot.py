@@ -134,7 +134,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
-# تابع بررسی و ارسال ریمیکس
+# تابع بررسی و ارسال ریمیکس (اصلاح شده)
 # ============================================================
 async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYPE, remix_code):
     user_id = update.effective_user.id
@@ -144,14 +144,27 @@ async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYP
 
     deactivate_expired_channels()
     has_reward = has_referral_reward(user_id)
+    
     channels = get_active_channels()
+    
+    # حذف کانال‌های تکراری بر اساس channel_link
+    seen = set()
+    unique_channels = []
+    for ch in channels:
+        if ch[1] not in seen:
+            seen.add(ch[1])
+            unique_channels.append(ch)
+    channels = unique_channels
+    logger.info(f"🔍 Active channels (unique): {channels}")
 
     if not has_reward:
         is_member, failed_channel = check_all_memberships(user_id, channels, context.bot)
+        logger.info(f"🔍 Membership check: is_member={is_member}")
+        
         if not is_member:
             context.user_data['pending_remix'] = remix_code
             keyboard = create_membership_keyboard(channels)
-            text = f"🎵 دریافت ریمیکس\n\nکاربر {username} عزیز ❤️\n\nبرای دریافت نسخه کامل ریمیکس، ابتدا در کانال‌های زیر عضو شوید و سپس روی گزینه «عضو شدم ✅» ضربه بزنید\n\nپس از تأیید عضویت، فایل به صورت خودکار ارسال خواهد شد 🎧🔥"
+            text = f"🎵 دریافت ریمیکس\n\nکاربر {username} عزیز ❤️\n\nبرای دریافت نسخه کامل ريمیکس، ابتدا در کانال‌های زیر عضو شوید و سپس روی گزینه «عضو شدم ✅» ضربه بزنید\n\nپس از تأیید عضویت، فایل به صورت خودکار ارسال خواهد شد 🎧🔥"
             await update.message.reply_text(text, reply_markup=keyboard)
             return
 
@@ -188,7 +201,7 @@ async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 # ============================================================
-# تابع Callback Handler
+# تابع Callback Handler (اصلاح شده)
 # ============================================================
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -199,6 +212,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"📩 Callback: {data} from {user_id}")
 
     if data == "check_membership":
+        logger.info(f"✅ check_membership called for user {user_id}")
+        
         remix_code = context.user_data.get('pending_remix')
         if not remix_code:
             await query.edit_message_text("خطا ❌ لطفاً دوباره از لینک وارد شوید")
@@ -206,6 +221,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         deactivate_expired_channels()
         channels = get_active_channels()
+        
+        seen = set()
+        unique_channels = []
+        for ch in channels:
+            if ch[1] not in seen:
+                seen.add(ch[1])
+                unique_channels.append(ch)
+        channels = unique_channels
+        
         has_reward = has_referral_reward(user_id)
 
         is_member = True
@@ -213,15 +237,16 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for channel_id, channel_link, display_name in channels:
                 if not check_user_in_channel(user_id, channel_link, context.bot):
                     is_member = False
+                    logger.info(f"❌ User not in channel: {channel_link}")
                     break
 
         if not is_member:
-            await query.answer("در همه کانال‌ها عضو نشده‌اید ❌", show_alert=True)
+            await query.answer("❌ در همه کانال‌ها عضو نشده‌اید!", show_alert=True)
             keyboard = create_membership_keyboard(channels)
             await query.edit_message_reply_markup(reply_markup=keyboard)
             return
 
-        await query.edit_message_text("عضویت شما تأیید شد ✅ در حال ارسال فایل...")
+        await query.edit_message_text("✅ عضویت شما تأیید شد! در حال ارسال فایل...")
 
         remix = get_remix(remix_code)
         if remix:
@@ -283,7 +308,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text
 
-    # ===== اگر فایل صوتی یا عکس است، پردازش شود =====
     if update.message.audio or update.message.photo:
         await handle_file_upload(update, context)
         return
@@ -395,7 +419,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     action = context.user_data.get('admin_action')
     feature_action = context.user_data.get('feature_action')
 
-    # ===== منوی اصلی پنل =====
     if text == "پنل ریمیکس 🎵":
         clear_user_state(context)
         keyboard = create_remix_panel_keyboard()
@@ -973,18 +996,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ============================================================
-# تابع پردازش فایل‌ها (MP3)
+# تابع پردازش فایل‌ها
 # ============================================================
 async def handle_file_upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     action = context.user_data.get('admin_action')
     user_action = context.user_data.get('user_action')
 
-    # ===== فایل صوتی =====
     if update.message.audio:
         logger.info(f"🎵 Audio from {user_id}, action: {action}, user_action: {user_action}")
         
-        # اولویت ۱: افزودن ریمیکس
         if action == 'add_remix_audio':
             try:
                 audio_file = await update.message.audio.get_file()
@@ -998,10 +1019,7 @@ async def handle_file_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 os.makedirs("remixes", exist_ok=True)
                 await audio_file.download_to_drive(mp3_path)
                 
-                # ذخیره مسیر فایل برای مرحله بعد
                 context.user_data['new_remix_path'] = mp3_path
-                
-                # از مالک لینک پست را می‌خواهیم
                 context.user_data['admin_action'] = 'add_remix_link'
                 await update.message.reply_text(
                     f"✅ فایل MP3 با موفقیت دریافت شد!\n\n"
@@ -1016,7 +1034,6 @@ async def handle_file_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await update.message.reply_text(f"خطا در دریافت فایل ❌: {e}")
                 return
 
-        # اولویت ۲: پیشنهاد آهنگ
         elif user_action == 'song_request':
             try:
                 audio = update.message.audio
@@ -1054,12 +1071,10 @@ async def handle_file_upload(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 await update.message.reply_text("خطا در ارسال درخواست ❌ لطفاً بعداً تلاش کنید")
                 return
 
-        # اگر هیچ کدام نبود
         else:
             await update.message.reply_text("❌ لطفاً ابتدا از منوی اصلی گزینه مورد نظر را انتخاب کنید.")
             return
 
-    # ===== عکس (دیگر استفاده نمی‌شود، ولی برای جلوگیری از خطا نگه داشته شده) =====
     if update.message.photo:
         await update.message.reply_text("❌ لطفاً فقط فایل MP3 ارسال کنید. (مرحله عکس کاور حذف شده است)")
         return
