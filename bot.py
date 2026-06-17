@@ -44,13 +44,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_user(user_id, username, first_name)
     args = context.args
     
-    # ===== لاگ برای عیب‌یابی =====
     logger.info(f"📩 Start from user {user_id}, args: {args}")
 
-    # ===== بررسی لینک‌های deep link =====
     if args and args[0].startswith("code_"):
         try:
-            # استخراج کد از args[0]
             code_str = args[0].split("code_")[1]
             remix_code = int(code_str)
             logger.info(f"✅ Code extracted: {remix_code}")
@@ -83,7 +80,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"❌ Error processing referral: {e}")
 
-    # ===== اگر کاربر مالک است =====
     if user_id == OWNER_ID:
         keyboard = create_owner_keyboard()
         await update.message.reply_text(
@@ -92,7 +88,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # ===== پیام خوش‌آمدگویی برای کاربران عادی =====
     welcome_text = f"به ربات EDIT 41 خوش آمدید 🎵\n\n{CHANNEL_USERNAME}\nبهترین کانال ادیت و ریمیکس‌های فوق‌العاده\n\nبرای دریافت ریمیکس، روی دکمه‌های زیر کلیک کنید"
     keyboard = create_user_keyboard()
     await update.message.reply_text(welcome_text, reply_markup=keyboard)
@@ -557,113 +552,77 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error sending backup: {e}")
         return
 
-    # ===== پردازش فایل‌ها =====
+    # ============================================================
+    # پردازش فایل‌ها (MP3 و عکس)
+    # ============================================================
+    
+    # ===== دریافت action ها =====
     action = context.user_data.get('admin_action')
     user_action = context.user_data.get('user_action')
 
-    # ===== اولویت ۱: افزودن ریمیکس (پنل ادمین) =====
-    if action == 'add_remix_audio':
-        if update.message.audio:
-            audio_file = await update.message.audio.get_file()
-            code = context.user_data['new_remix_code']
-            mp3_path = f"remixes/remix_{code}.mp3"
-            os.makedirs("remixes", exist_ok=True)
-            await audio_file.download_to_drive(mp3_path)
-
-            title = context.user_data['new_remix_title']
-            artist = context.user_data['new_remix_artist']
-            cover_path = context.user_data['new_remix_cover']
-
-            success = add_metadata_to_mp3(mp3_path, cover_path, title, artist, code)
-
-            if success:
-                add_remix(code, mp3_path, title, artist, cover_path)
-                await update.message.reply_text(
-                    f"ریمیکس با موفقیت ذخیره شد ✅\n\n🎵 {title} - {artist}\n🎚 کد: {code}\n🖼 عکس کاور به متادیتا اضافه شد\n\n🔗 {create_remix_link(code)}"
-                )
-            else:
-                await update.message.reply_text("فایل ذخیره شد اما متادیتا اضافه نشد ⚠️")
-
-            clear_user_state(context)
-        else:
-            await update.message.reply_text("لطفاً یک فایل MP3 معتبر ارسال کنید ❌")
-        return
-
-    # ===== اولویت ۲: دریافت ریمیکس با کد =====
-    if user_action == 'get_remix_by_code':
-        try:
-            code = int(text.strip())
-            remix = get_remix(code)
-            
-            if not remix:
-                await update.message.reply_text(f"ریمیکس با کد {code} یافت نشد ❌")
-                context.user_data.pop('user_action', None)
-                return
-            
-            deactivate_expired_channels()
-            has_reward = has_referral_reward(user_id)
-            channels = get_active_channels()
-            
-            if not has_reward:
-                is_member, failed_channel = check_all_memberships(user_id, channels, context.bot)
-                if not is_member:
-                    context.user_data['pending_remix'] = code
-                    keyboard = create_membership_keyboard(channels)
-                    text_msg = f"دریافت ریمیکس 🎵\n\nکاربر {update.effective_user.first_name or 'کاربر'} عزیز ❤️\n\nبرای دریافت نسخه کامل ریمیکس، ابتدا در کانال‌های زیر عضو شوید و سپس روی گزینه «عضو شدم ✅» ضربه بزنید\n\nپس از تأیید عضویت، فایل به صورت خودکار ارسال خواهد شد 🎧🔥"
-                    await update.message.reply_text(text_msg, reply_markup=keyboard)
-                    context.user_data.pop('user_action', None)
-                    return
-            
-            code, file_path, title, artist, cover_path, views, likes, dislikes, created_at = remix
-            
-            increment_views(code, user_id)
-            add_user_remix(user_id, code)
-            
-            vote_keyboard = create_vote_keyboard(code, user_id)
-            caption = f"🎵 {title}\n🎤 خواننده: {artist}\n🎚 کد: {code}\n📅 تاریخ انتشار: {created_at[:10] if created_at else 'نامشخص'}\n\nاز شنیدن این ریمیکس لذت بردید؟ نظرتون رو با کلیک روی دکمه‌های زیر ثبت کنید 👇"
-            
+    # ===== اگر فایل صوتی (MP3) ارسال شده =====
+    if update.message.audio:
+        logger.info(f"🎵 Audio received from {user_id}, action: {action}, user_action: {user_action}")
+        
+        # اولویت ۱: افزودن ریمیکس (پنل ادمین)
+        if action == 'add_remix_audio':
             try:
-                with open(file_path, 'rb') as audio_file:
-                    await update.message.reply_audio(
-                        audio=audio_file,
-                        title=title,
-                        performer=artist,
-                        caption=caption,
-                        reply_markup=vote_keyboard
-                    )
-                context.user_data.pop('user_action', None)
-            except Exception as e:
-                logger.error(f"Error sending remix: {e}")
-                await update.message.reply_text("خطا در ارسال فایل ❌ لطفاً بعداً تلاش کنید")
+                audio_file = await update.message.audio.get_file()
+                code = context.user_data.get('new_remix_code')
                 
-        except ValueError:
-            await update.message.reply_text("کد معتبر نیست ❌ لطفاً یک عدد ارسال کنید")
-            context.user_data.pop('user_action', None)
-        except Exception as e:
-            await update.message.reply_text(f"خطا ❌ {e}")
-            context.user_data.pop('user_action', None)
-        return
+                if not code:
+                    await update.message.reply_text("خطا ❌ کد ریمیکس پیدا نشد. لطفاً مراحل را از اول تکرار کنید.")
+                    return
+                    
+                mp3_path = f"remixes/remix_{code}.mp3"
+                os.makedirs("remixes", exist_ok=True)
+                await audio_file.download_to_drive(mp3_path)
 
-    # ===== اولویت ۳: پیشنهاد آهنگ برای ادیت =====
-    if user_action == 'song_request':
-        if update.message.audio:
-            audio = update.message.audio
-            file_id = audio.file_id
-            file_name = audio.file_name or "unknown.mp3"
-            
-            add_song_request(user_id, file_id, file_name)
-            
-            user = update.effective_user
-            caption = (
-                f"📥 درخواست آهنگ جدید\n\n"
-                f"👤 کاربر: {user.first_name}\n"
-                f"🆔 آیدی: {user.id}\n"
-                f"📛 یوزرنیم: @{user.username if user.username else 'ندارد'}\n"
-                f"📅 تاریخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-                f"📁 نام فایل: {file_name}"
-            )
-            
+                title = context.user_data.get('new_remix_title', 'Unknown')
+                artist = context.user_data.get('new_remix_artist', 'Unknown')
+                cover_path = context.user_data.get('new_remix_cover')
+
+                if not cover_path or not os.path.exists(cover_path):
+                    await update.message.reply_text("خطا ❌ عکس کاور پیدا نشد. لطفاً مراحل را از اول تکرار کنید.")
+                    return
+
+                success = add_metadata_to_mp3(mp3_path, cover_path, title, artist, code)
+
+                if success:
+                    add_remix(code, mp3_path, title, artist, cover_path)
+                    await update.message.reply_text(
+                        f"ریمیکس با موفقیت ذخیره شد ✅\n\n🎵 {title} - {artist}\n🎚 کد: {code}\n🖼 عکس کاور به متادیتا اضافه شد\n\n🔗 {create_remix_link(code)}"
+                    )
+                    logger.info(f"✅ Remix {code} saved successfully")
+                else:
+                    await update.message.reply_text("فایل ذخیره شد اما متادیتا اضافه نشد ⚠️")
+
+                clear_user_state(context)
+                return
+            except Exception as e:
+                logger.error(f"❌ Error saving remix: {e}")
+                await update.message.reply_text(f"خطا در ذخیره ریمیکس ❌: {e}")
+                return
+
+        # اولویت ۲: پیشنهاد آهنگ برای ادیت
+        elif user_action == 'song_request':
             try:
+                audio = update.message.audio
+                file_id = audio.file_id
+                file_name = audio.file_name or "unknown.mp3"
+                
+                add_song_request(user_id, file_id, file_name)
+                
+                user = update.effective_user
+                caption = (
+                    f"📥 درخواست آهنگ جدید\n\n"
+                    f"👤 کاربر: {user.first_name}\n"
+                    f"🆔 آیدی: {user.id}\n"
+                    f"📛 یوزرنیم: @{user.username if user.username else 'ندارد'}\n"
+                    f"📅 تاریخ: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+                    f"📁 نام فایل: {file_name}"
+                )
+                
                 await context.bot.send_audio(
                     chat_id=REQUEST_GROUP_ID,
                     audio=file_id,
@@ -676,17 +635,55 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "📌 نتیجه درخواست به شما اطلاع داده می‌شود"
                 )
                 context.user_data.pop('user_action', None)
+                logger.info(f"✅ Song request sent to group from {user_id}")
+                return
             except Exception as e:
-                logger.error(f"Error sending song request to group: {e}")
+                logger.error(f"❌ Error sending song request: {e}")
                 await update.message.reply_text("خطا در ارسال درخواست ❌ لطفاً بعداً تلاش کنید")
-        else:
-            await update.message.reply_text("❌ لطفاً یک فایل MP3 معتبر ارسال کنید")
-        return
+                return
 
-    # ===== ادامه مدیریت سایر admin_actionها =====
+        # اگر هیچ کدام نبود
+        else:
+            await update.message.reply_text("❌ لطفاً ابتدا از منوی اصلی گزینه مورد نظر را انتخاب کنید.")
+            return
+
+    # ===== اگر فایل عکس ارسال شده =====
+    if update.message.photo:
+        logger.info(f"🖼 Photo received from {user_id}, action: {action}")
+        
+        if action == 'add_remix_cover':
+            try:
+                photo_file = await update.message.photo[-1].get_file()
+                code = context.user_data.get('new_remix_code')
+                
+                if not code:
+                    await update.message.reply_text("خطا ❌ کد ریمیکس پیدا نشد. لطفاً مراحل را از اول تکرار کنید.")
+                    return
+                    
+                cover_path = f"covers/code_{code}.jpg"
+                os.makedirs("covers", exist_ok=True)
+                await photo_file.download_to_drive(cover_path)
+                context.user_data['new_remix_cover'] = cover_path
+                context.user_data['admin_action'] = 'add_remix_audio'
+                await update.message.reply_text("ارسال فایل MP3 🎵\n\nلطفاً فایل MP3 ریمیکس را ارسال کنید")
+                logger.info(f"✅ Cover saved for remix {code}")
+                return
+            except Exception as e:
+                logger.error(f"❌ Error saving cover: {e}")
+                await update.message.reply_text(f"خطا در ذخیره عکس ❌: {e}")
+                return
+        else:
+            await update.message.reply_text("❌ لطفاً ابتدا از پنل ادمین گزینه افزودن ریمیکس را انتخاب کنید.")
+            return
+
+    # ============================================================
+    # ادامه مدیریت سایر admin_actionها (ورودی‌های متنی)
+    # ============================================================
+    
     if not action:
         return
 
+    # ===== افزودن ریمیکس (مراحل قبل از فایل) =====
     if action == 'add_remix_code':
         try:
             code = int(text.strip())
@@ -698,31 +695,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("عنوان آهنگ 🎵\n\nلطفاً عنوان آهنگ (Title) را وارد کنید")
         except:
             await update.message.reply_text("کد معتبر نیست ❌ یک عدد ارسال کنید")
+        return
 
-    elif action == 'add_remix_title':
+    if action == 'add_remix_title':
         context.user_data['new_remix_title'] = text
         context.user_data['admin_action'] = 'add_remix_artist'
         await update.message.reply_text("نام خواننده 🎤\n\nلطفاً نام خواننده (Artist) را وارد کنید")
+        return
 
-    elif action == 'add_remix_artist':
+    if action == 'add_remix_artist':
         context.user_data['new_remix_artist'] = text
         context.user_data['admin_action'] = 'add_remix_cover'
         await update.message.reply_text("عکس کاور 🖼\n\nلطفاً عکس کاور آهنگ را ارسال کنید (حتماً با نسبت 1:1)")
+        return
 
-    elif action == 'add_remix_cover':
-        if update.message.photo:
-            photo_file = await update.message.photo[-1].get_file()
-            code = context.user_data['new_remix_code']
-            cover_path = f"covers/code_{code}.jpg"
-            os.makedirs("covers", exist_ok=True)
-            await photo_file.download_to_drive(cover_path)
-            context.user_data['new_remix_cover'] = cover_path
-            context.user_data['admin_action'] = 'add_remix_audio'
-            await update.message.reply_text("ارسال فایل MP3 🎵\n\nلطفاً فایل MP3 ریمیکس را ارسال کنید")
-        else:
-            await update.message.reply_text("لطفاً یک عکس ارسال کنید ❌")
-
-    elif action == 'delete_remix':
+    # ===== حذف ریمیکس =====
+    if action == 'delete_remix':
         try:
             code = int(text.strip())
             remix = get_remix(code)
@@ -742,20 +730,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('admin_action', None)
         except:
             await update.message.reply_text("کد معتبر نیست ❌ یک عدد ارسال کنید")
+        return
 
-    elif action == 'add_channel_link':
+    # ===== افزودن کانال =====
+    if action == 'add_channel_link':
         context.user_data['new_channel_link'] = text
         context.user_data['admin_action'] = 'add_channel_name'
         await update.message.reply_text("نام نمایشی کانال 🔰\n\nلطفاً یک نام برای این کانال وارد کنید\n(مثال: کانال اصلی 🖤 یا تبلیغ 💢)")
+        return
 
-    elif action == 'add_channel_name':
+    if action == 'add_channel_name':
         context.user_data['new_channel_name'] = text
         context.user_data['admin_action'] = 'add_channel_days'
         await update.message.reply_text("مدت زمان اشتراک 📅\n\nلطفاً تعداد روزهای اشتراک را وارد کنید\n(مثال: 30 یا 60 یا 90)")
+        return
 
-    elif action == 'add_channel_days':
+    if action == 'add_channel_days':
         try:
-            clean_text = text.strip().replace(" ", "").replace("روز", "").replace("روز", "")
+            clean_text = text.strip().replace(" ", "").replace("روز", "")
             days = int(clean_text)
             
             if days <= 0:
@@ -783,8 +775,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("تعداد روز معتبر نیست ❌ لطفاً یک عدد (مثلاً 30) ارسال کنید")
         except Exception as e:
             await update.message.reply_text(f"خطا ❌ {e}")
+        return
 
-    elif action == 'remove_channel':
+    # ===== حذف کانال =====
+    if action == 'remove_channel':
         try:
             channel_id = int(text.strip())
             
@@ -807,8 +801,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('admin_action', None)
         except:
             await update.message.reply_text("آیدی معتبر نیست ❌ یک عدد ارسال کنید")
+        return
 
-    elif action == 'add_admin':
+    # ===== افزودن ادمین =====
+    if action == 'add_admin':
         try:
             admin_id = int(text.strip())
             if admin_id == OWNER_ID:
@@ -819,8 +815,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('admin_action', None)
         except:
             await update.message.reply_text("آیدی معتبر نیست ❌ یک عدد ارسال کنید")
+        return
 
-    elif action == 'remove_admin':
+    # ===== حذف ادمین =====
+    if action == 'remove_admin':
         try:
             admin_id = int(text.strip())
             if admin_id == OWNER_ID:
@@ -831,8 +829,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('admin_action', None)
         except:
             await update.message.reply_text("آیدی معتبر نیست ❌ یک عدد ارسال کنید")
+        return
 
-    elif action == 'set_price':
+    # ===== تنظیم نرخ =====
+    if action == 'set_price':
         try:
             price = int(text.strip())
             set_setting('ad_price_per_day', str(price))
@@ -840,8 +840,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('admin_action', None)
         except:
             await update.message.reply_text("مبلغ معتبر نیست ❌ یک عدد ارسال کنید")
+        return
 
-    elif action == 'change_password':
+    # ===== تغییر رمز =====
+    if action == 'change_password':
         if len(text.strip()) >= 4:
             await update.message.reply_text(
                 f"رمز پنل تغییر یافت 🔐\n\nرمز جدید: {text.strip()}\n\n⚠️ توجه: برای اعمال تغییرات، ربات را ریستارت کنید"
@@ -849,16 +851,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.user_data.pop('admin_action', None)
         else:
             await update.message.reply_text("رمز باید حداقل ۴ کاراکتر باشد ❌")
+        return
 
-    elif text and (text.startswith("https://t.me/") or text.startswith("t.me/")):
+    # ===== افزودن دکمه با لینک =====
+    if text and (text.startswith("https://t.me/") or text.startswith("t.me/")):
         if CHANNEL_USERNAME.replace("@", "") in text:
             context.user_data['pending_button_link'] = text
             context.user_data['admin_action'] = 'add_button_code'
             await update.message.reply_text("افزودن دکمه به پست 🔗\n\nلطفاً کد ریمیکس مربوط به این پست را وارد کنید")
         else:
             await update.message.reply_text("لینک باید مربوط به کانال اصلی باشد ℹ️")
+        return
 
-    elif action == 'add_button_code':
+    if action == 'add_button_code':
         try:
             code = int(text.strip())
             link = context.user_data.get('pending_button_link')
@@ -896,6 +901,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         except:
             await update.message.reply_text("کد معتبر نیست ❌ یک عدد ارسال کنید")
+        return
 
 
 # ============================================================
@@ -1126,7 +1132,6 @@ def main():
 
     app.add_handler(CallbackQueryHandler(callback_handler))
 
-    # ===== ترتیب هندلرها =====
     app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, handle_group_messages))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_message))
