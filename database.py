@@ -84,7 +84,7 @@ def init_db():
         value TEXT
     )''')
     
-    # ===== جدول جدید: درخواست‌های آهنگ =====
+    # جدول درخواست‌های آهنگ
     c.execute('''CREATE TABLE IF NOT EXISTS song_requests (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER,
@@ -95,10 +95,42 @@ def init_db():
         UNIQUE(user_id, requested_at)
     )''')
     
+    # ===== جداول جدید برای سیستم امتیاز =====
+    c.execute('''CREATE TABLE IF NOT EXISTS user_points (
+        user_id INTEGER PRIMARY KEY,
+        points INTEGER DEFAULT 0,
+        week_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS weekly_winners (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        points INTEGER,
+        week_start TIMESTAMP,
+        won_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    
+    # ===== جدول وضعیت قابلیت‌ها =====
+    c.execute('''CREATE TABLE IF NOT EXISTS bot_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    )''')
+    
+    # تنظیمات پیش‌فرض قابلیت‌ها (همه روشن)
+    default_features = [
+        ('feature_get_by_code', 'on'),
+        ('feature_song_request', 'on'),
+        ('feature_random_remix', 'on'),
+        ('feature_top_remixes', 'on'),
+        ('feature_help', 'on'),
+    ]
+    for key, value in default_features:
+        c.execute("INSERT OR IGNORE INTO bot_settings (key, value) VALUES (?, ?)", (key, value))
+    
     # تنظیمات پیش‌فرض
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ad_price_per_day', ?)", (str(AD_PRICE_PER_DAY),))
     
-    # افزودن کانال اصلی به عنوان عضویت دائمی
+    # افزودن کانال اصلی
     channel_link = f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
     c.execute("INSERT OR IGNORE INTO required_channels (channel_link, display_name, expires_at, is_active, is_permanent) VALUES (?, ?, ?, ?, ?)",
               (channel_link, "کانال اصلی", None, 1, 1))
@@ -180,7 +212,7 @@ def get_random_remix():
 
 
 # ============================================================
-# توابع رای‌دهی
+# توابع رای‌دهی + امتیاز
 # ============================================================
 def get_user_vote(user_id, remix_code):
     conn = sqlite3.connect(DATABASE_NAME)
@@ -212,8 +244,12 @@ def set_user_vote(user_id, remix_code, vote):
         c.execute("INSERT INTO remix_votes (user_id, remix_code, vote) VALUES (?, ?, ?)", (user_id, remix_code, vote))
         if vote == 1:
             c.execute("UPDATE remixes SET likes = likes + 1 WHERE code = ?", (remix_code,))
+            # امتیاز برای لایک
+            add_points(user_id, 1, "like")
         elif vote == -1:
-            c.execute("UPDATE remixes SET dislikes = dislikes - 1 WHERE code = ?", (remix_code,))
+            c.execute("UPDATE remixes SET dislikes = dislikes + 1 WHERE code = ?", (remix_code,))
+            # امتیاز منفی برای دیسلایک
+            add_points(user_id, -1, "dislike")
     
     conn.commit()
     conn.close()
@@ -241,13 +277,11 @@ def add_channel(channel_link, display_name, days):
 def remove_channel(channel_id, is_owner=False):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
-    
     c.execute("SELECT is_permanent FROM required_channels WHERE id = ?", (channel_id,))
     result = c.fetchone()
     if result and result[0] == 1 and not is_owner:
         conn.close()
         return False
-    
     c.execute("DELETE FROM required_channels WHERE id = ?", (channel_id,))
     conn.commit()
     conn.close()
@@ -330,6 +364,14 @@ def get_all_users():
     conn.close()
     return [r[0] for r in results]
 
+def get_user(user_id):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("SELECT user_id, username, first_name, joined_at FROM users WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return result
+
 def has_user_received_remix(user_id, remix_code):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -345,17 +387,9 @@ def add_user_remix(user_id, remix_code):
     conn.commit()
     conn.close()
 
-def get_total_remix_downloads():
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM user_remixes")
-    result = c.fetchone()
-    conn.close()
-    return result[0] if result else 0
-
 
 # ============================================================
-# توابع دعوت دوستان
+# توابع دعوت
 # ============================================================
 def get_user_referral_code(user_id):
     return f"REF_{user_id}"
@@ -401,63 +435,7 @@ def check_and_activate_referral_rewards(user_id):
 
 
 # ============================================================
-# توابع آمار
-# ============================================================
-def get_stats():
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    
-    c.execute("SELECT COUNT(*) FROM users")
-    total_users = c.fetchone()[0]
-    
-    c.execute("SELECT COUNT(*) FROM remixes")
-    total_remixes = c.fetchone()[0]
-    
-    c.execute("SELECT COUNT(*) FROM user_remixes")
-    total_downloads = c.fetchone()[0]
-    
-    c.execute("SELECT code, title, artist, views FROM remixes ORDER BY views DESC LIMIT 1")
-    most_viewed = c.fetchone()
-    
-    c.execute("SELECT code, title, artist, (likes - dislikes) as score FROM remixes ORDER BY score DESC LIMIT 1")
-    most_liked = c.fetchone()
-    
-    c.execute("SELECT COUNT(*) FROM required_channels WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > datetime('now'))")
-    active_channels = c.fetchone()[0]
-    
-    conn.close()
-    
-    return {
-        'total_users': total_users,
-        'total_remixes': total_remixes,
-        'total_downloads': total_downloads,
-        'most_viewed': most_viewed,
-        'most_liked': most_liked,
-        'active_channels': active_channels
-    }
-
-
-# ============================================================
-# توابع تنظیمات
-# ============================================================
-def get_setting(key):
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    c.execute("SELECT value FROM settings WHERE key = ?", (key,))
-    result = c.fetchone()
-    conn.close()
-    return result[0] if result else None
-
-def set_setting(key, value):
-    conn = sqlite3.connect(DATABASE_NAME)
-    c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
-    conn.commit()
-    conn.close()
-
-
-# ============================================================
-# توابع درخواست آهنگ (جدید)
+# توابع درخواست آهنگ
 # ============================================================
 def add_song_request(user_id, file_id, file_name):
     conn = sqlite3.connect(DATABASE_NAME)
@@ -474,3 +452,237 @@ def get_last_song_request(user_id):
     result = c.fetchone()
     conn.close()
     return result[0] if result else None
+
+
+# ============================================================
+# توابع امتیاز (جدید)
+# ============================================================
+def get_week_start():
+    """دریافت تاریخ شروع هفته (یکشنبه)"""
+    now = datetime.now()
+    start = now - timedelta(days=now.weekday() + 1)
+    return start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+def add_points(user_id, points, reason):
+    """افزایش یا کاهش امتیاز کاربر"""
+    week_start = get_week_start()
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    
+    c.execute("SELECT points FROM user_points WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    
+    if result:
+        c.execute("UPDATE user_points SET points = points + ? WHERE user_id = ?", (points, user_id))
+    else:
+        c.execute("INSERT INTO user_points (user_id, points, week_start) VALUES (?, ?, ?)", (user_id, points, week_start))
+    
+    conn.commit()
+    conn.close()
+
+def get_user_points(user_id):
+    """دریافت امتیاز فعلی کاربر"""
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("SELECT points FROM user_points WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else 0
+
+def reset_weekly_points():
+    """ریست امتیازهای هفتگی و ثبت برترین‌ها"""
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    
+    # دریافت ۵ کاربر برتر
+    c.execute("SELECT user_id, points FROM user_points ORDER BY points DESC LIMIT 5")
+    top_users = c.fetchall()
+    
+    week_start = get_week_start()
+    
+    # ثبت برترین‌ها در جدول weekly_winners
+    for user_id, points in top_users:
+        if points > 0:
+            c.execute("INSERT INTO weekly_winners (user_id, points, week_start) VALUES (?, ?, ?)",
+                      (user_id, points, week_start))
+    
+    # ۳ کاربر برتر -> پاداش ۳ روزه
+    for i, (user_id, points) in enumerate(top_users[:3]):
+        if points > 0:
+            activate_referral_reward(user_id, 3, 'weekly_winner')
+    
+    # ریست امتیازها
+    c.execute("DELETE FROM user_points")
+    
+    conn.commit()
+    conn.close()
+    
+    return top_users
+
+def get_top_users(limit=5):
+    """دریافت برترین‌های هفته جاری"""
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("SELECT user_id, points FROM user_points ORDER BY points DESC LIMIT ?", (limit,))
+    results = c.fetchall()
+    conn.close()
+    return results
+
+def get_weekly_winners():
+    """دریافت برترین‌های هفته گذشته (ثبت شده)"""
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("SELECT user_id, points, week_start FROM weekly_winners ORDER BY points DESC LIMIT 5")
+    results = c.fetchall()
+    conn.close()
+    return results
+
+
+# ============================================================
+# توابع تنظیمات و قابلیت‌ها
+# ============================================================
+def get_setting(key):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else None
+
+def set_setting(key, value):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+    conn.close()
+
+# ===== توابع وضعیت قابلیت‌ها =====
+def get_feature_status(feature_key):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("SELECT value FROM bot_settings WHERE key = ?", (feature_key,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else 'on'
+
+def set_feature_status(feature_key, status):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO bot_settings (key, value) VALUES (?, ?)", (feature_key, status))
+    conn.commit()
+    conn.close()
+
+def get_all_features():
+    features = {
+        'feature_get_by_code': 'دریافت ریمیکس با کد',
+        'feature_song_request': 'پیشنهاد آهنگ برای ادیت',
+        'feature_random_remix': 'ریمیکس تصادفی',
+        'feature_top_remixes': 'ریمیکس‌های برتر',
+        'feature_help': 'راهنما',
+    }
+    result = {}
+    for key, name in features.items():
+        status = get_feature_status(key)
+        result[key] = {'name': name, 'status': status}
+    return result
+
+def is_feature_enabled(feature_key):
+    return get_feature_status(feature_key) == 'on'
+
+
+# ============================================================
+# توابع آمار کامل
+# ============================================================
+def get_stats():
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    
+    c.execute("SELECT COUNT(*) FROM users")
+    total_users = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM remixes")
+    total_remixes = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM user_remixes")
+    total_downloads = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM required_channels WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > datetime('now'))")
+    active_channels = c.fetchone()[0]
+    
+    # کاربران فعال امروز
+    today = datetime.now().strftime('%Y-%m-%d')
+    c.execute("SELECT COUNT(*) FROM users WHERE DATE(joined_at) = ?", (today,))
+    today_users = c.fetchone()[0]
+    
+    # دانلودهای امروز
+    c.execute("SELECT COUNT(*) FROM user_remixes WHERE DATE(received_at) = ?", (today,))
+    today_downloads = c.fetchone()[0]
+    
+    # درخواست‌های امروز
+    c.execute("SELECT COUNT(*) FROM song_requests WHERE DATE(requested_at) = ?", (today,))
+    today_requests = c.fetchone()[0]
+    
+    # کل درخواست‌ها
+    c.execute("SELECT COUNT(*) FROM song_requests")
+    total_requests = c.fetchone()[0]
+    
+    # کل بازدیدها
+    c.execute("SELECT SUM(views) FROM remixes")
+    total_views = c.fetchone()[0] or 0
+    
+    # پربازدیدترین
+    c.execute("SELECT code, title, artist, views FROM remixes ORDER BY views DESC LIMIT 1")
+    most_viewed = c.fetchone()
+    
+    # پرطرفدارترین (بیشترین لایک)
+    c.execute("SELECT code, title, artist, likes FROM remixes ORDER BY likes DESC LIMIT 1")
+    most_liked = c.fetchone()
+    
+    conn.close()
+    
+    return {
+        'total_users': total_users,
+        'total_remixes': total_remixes,
+        'total_downloads': total_downloads,
+        'active_channels': active_channels,
+        'today_users': today_users,
+        'today_downloads': today_downloads,
+        'today_requests': today_requests,
+        'total_requests': total_requests,
+        'total_views': total_views,
+        'most_viewed': most_viewed,
+        'most_liked': most_liked,
+    }
+
+
+# ============================================================
+# توابع گزارش هفتگی
+# ============================================================
+def get_weekly_report():
+    """گزارش هفتگی برای مالک"""
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    
+    week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    c.execute("SELECT COUNT(*) FROM users WHERE joined_at > ?", (week_ago,))
+    new_users = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM user_remixes WHERE received_at > ?", (week_ago,))
+    new_downloads = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM song_requests WHERE requested_at > ?", (week_ago,))
+    new_requests = c.fetchone()[0]
+    
+    # ۳ ریمیکس پربازدید هفته
+    c.execute("SELECT code, title, artist, views FROM remixes ORDER BY views DESC LIMIT 3")
+    top_remixes = c.fetchall()
+    
+    conn.close()
+    
+    return {
+        'new_users': new_users,
+        'new_downloads': new_downloads,
+        'new_requests': new_requests,
+        'top_remixes': top_remixes,
+    }

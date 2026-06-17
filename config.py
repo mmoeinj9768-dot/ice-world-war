@@ -12,6 +12,5 @@ AD_PRICE_PER_DAY = 50000
 DATABASE_NAME = "remix_bot.db"
 ADMIN_PANEL_PASSWORD = "9729"
 
-# ===== قابلیت جدید: درخواست آهنگ =====
 REQUEST_GROUP_ID = -1004434170476
-REQUEST_COOLDOWN_DAYS = 3  # هر ۳ روز یک بار
+REQUEST_COOLDOWN_DAYS = 3

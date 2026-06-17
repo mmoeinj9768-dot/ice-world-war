@@ -95,24 +95,20 @@ def create_vote_keyboard(remix_code, user_id):
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# ===== کیبورد Reply برای کاربران عادی =====
+# ============================================================
+# کیبوردهای کاربران عادی
+# ============================================================
 def create_user_keyboard():
     keyboard = [
         [KeyboardButton("ریمیکس تصادفی 🎲"), KeyboardButton("ریمیکس‌های برتر 🏆")],
         [KeyboardButton("دریافت ریمیکس با کد 📥"), KeyboardButton("پیشنهاد آهنگ برای ادیت 📤")],
-        [KeyboardButton("آمار ربات 📊"), KeyboardButton("راهنما ℹ️")]
+        [KeyboardButton("دعوت دوستان 🎁"), KeyboardButton("راهنما ℹ️")],
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ===== کیبورد Reply برای مالک =====
-def create_owner_keyboard():
-    keyboard = [
-        [KeyboardButton("ورود به پنل مالک 👑")],
-        [KeyboardButton("ورود به پنل کاربر عادی 👤")]
-    ]
-    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-# ===== کیبورد Reply برای پنل ادمین (منوی اصلی) =====
+# ============================================================
+# کیبوردهای پنل مالک
+# ============================================================
 def create_admin_main_keyboard():
     keyboard = [
         [KeyboardButton("پنل ریمیکس 🎵"), KeyboardButton("پنل عضویت اجباری 🔗")],
@@ -121,16 +117,14 @@ def create_admin_main_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ===== کیبورد Reply برای پنل ریمیکس =====
 def create_remix_panel_keyboard():
     keyboard = [
-        [KeyboardButton("افزودن ریمیکس جدید ➕"), KeyboardButton("ریمیکس‌های برتر 🏆")],
-        [KeyboardButton("حذف ریمیکس 🗑")],
+        [KeyboardButton("افزودن ریمیکس جدید ➕"), KeyboardButton("آمار ریمیکس 💎")],
+        [KeyboardButton("حذف ریمیکس 🗑"), KeyboardButton("جستجوی ریمیکس با کد 🔍")],
         [KeyboardButton("بازگشت ↩️")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ===== کیبورد Reply برای پنل عضویت اجباری =====
 def create_channel_panel_keyboard():
     keyboard = [
         [KeyboardButton("افزودن کانال عضویت ➕"), KeyboardButton("حذف کانال عضویت 🗑")],
@@ -139,7 +133,6 @@ def create_channel_panel_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ===== کیبورد Reply برای پنل ادمین =====
 def create_admin_management_keyboard():
     keyboard = [
         [KeyboardButton("افزودن ادمین ➕"), KeyboardButton("حذف ادمین 🗑")],
@@ -148,15 +141,28 @@ def create_admin_management_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ===== کیبورد Reply برای پنل تنظیمات =====
 def create_settings_panel_keyboard():
     keyboard = [
-        [KeyboardButton("تنظیم نرخ تبلیغات 💰"), KeyboardButton("تغییر رمز پنل 🔐")],
+        [KeyboardButton("وضعیت قابلیت‌ها ⚙️"), KeyboardButton("آمار کاربران 👥")],
         [KeyboardButton("آمار کامل 📊"), KeyboardButton("بکاپ دیتابیس 💾")],
         [KeyboardButton("بازگشت ↩️")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
+# ============================================================
+# کیبوردهای وضعیت قابلیت‌ها
+# ============================================================
+def create_feature_status_keyboard():
+    keyboard = [
+        [KeyboardButton("خاموش کردن قابلیت 🛑")],
+        [KeyboardButton("روشن کردن قابلیت ✅")],
+        [KeyboardButton("بازگشت ↩️")]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+# ============================================================
+# توابع کمکی
+# ============================================================
 def check_user_in_channel(user_id, channel_link, bot):
     try:
         if "t.me/" in channel_link:
@@ -165,18 +171,12 @@ def check_user_in_channel(user_id, channel_link, bot):
             chat_username = channel_link.replace("@", "")
         
         if not chat_username:
-            logger.warning(f"❌ Invalid channel link: {channel_link}")
             return False
         
-        logger.info(f"🔍 Checking membership for {user_id} in @{chat_username}")
-        
         chat_member = bot.get_chat_member(chat_id=f"@{chat_username}", user_id=user_id)
-        status = chat_member.status
-        logger.info(f"📊 User status: {status}")
-        
-        return status in ["member", "administrator", "creator"]
+        return chat_member.status in ["member", "administrator", "creator"]
     except Exception as e:
-        logger.error(f"❌ Error checking membership: {e}")
+        print(f"Error checking membership: {e}")
         return False
 
 def check_all_memberships(user_id, channels, bot):
@@ -190,7 +190,3 @@ def extract_number(text):
     if numbers:
         return int(numbers[0])
     return None
-
-def is_admin_or_owner(user_id, owner_id):
-    from database import is_admin
-    return user_id == owner_id or is_admin(user_id)
