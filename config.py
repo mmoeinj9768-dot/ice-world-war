@@ -3,7 +3,7 @@
 
 import os
 
-TOKEN = os.environ.get("TOKEN", "توکن_ربات_خود_را_اینجا_وارد_کنید")
+TOKEN = "8940814486:AAHcZCHxH13ni8h9ts6A1HTTQXq2AHVUo4A"
 OWNER_ID = 7700419184
 CHANNEL_USERNAME = "@EDIT_41"
 BOT_USERNAME = "@EDIT_41_BOT"
