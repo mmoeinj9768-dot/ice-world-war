@@ -19,6 +19,21 @@ user_temp_data = {}
 admin_session = {}
 
 # ============================================================
+# تابع کمکی برای پاک کردن وضعیت کاربر
+# ============================================================
+def clear_user_state(context: ContextTypes.DEFAULT_TYPE):
+    """پاک کردن تمام حالت‌های قبلی کاربر"""
+    context.user_data.pop('admin_action', None)
+    context.user_data.pop('user_action', None)
+    context.user_data.pop('new_remix_code', None)
+    context.user_data.pop('new_remix_title', None)
+    context.user_data.pop('new_remix_artist', None)
+    context.user_data.pop('new_remix_cover', None)
+    context.user_data.pop('new_channel_link', None)
+    context.user_data.pop('new_channel_name', None)
+    context.user_data.pop('pending_button_link', None)
+
+# ============================================================
 # تابع start
 # ============================================================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -208,6 +223,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ===== تشخیص دکمه‌های مالک =====
     if user_id == OWNER_ID:
         if text == "ورود به پنل مالک 👑":
+            clear_user_state(context)
             admin_session[user_id] = {'verified': True}
             keyboard = create_admin_main_keyboard()
             await update.message.reply_text(
@@ -217,6 +233,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         if text == "ورود به پنل کاربر عادی 👤":
+            clear_user_state(context)
             keyboard = create_user_keyboard()
             await update.message.reply_text(
                 f"به ربات EDIT 41 خوش آمدید 🎵\n\n{CHANNEL_USERNAME}\nبهترین کانال ادیت و ریمیکس‌های فوق‌العاده\n\nبرای دریافت ریمیکس، روی دکمه‌های زیر کلیک کنید",
@@ -282,6 +299,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "دریافت ریمیکس با کد 📥":
+        clear_user_state(context)
         context.user_data['user_action'] = 'get_remix_by_code'
         await update.message.reply_text(
             "دریافت ریمیکس با کد 📥\n\n"
@@ -291,6 +309,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "پیشنهاد آهنگ برای ادیت 📤":
+        clear_user_state(context)
         last_request = get_last_song_request(user_id)
         if last_request:
             days_diff = (datetime.now() - datetime.fromisoformat(last_request)).days
@@ -316,56 +335,83 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not (user_id == OWNER_ID or is_admin(user_id)):
         return
 
+    # ===== منوی اصلی پنل =====
     if text == "پنل ریمیکس 🎵":
+        clear_user_state(context)
         keyboard = create_remix_panel_keyboard()
-        await update.message.reply_text("پنل ریمیکس 🎵\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید", reply_markup=keyboard)
+        await update.message.reply_text(
+            "پنل ریمیکس 🎵\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید",
+            reply_markup=keyboard
+        )
         return
 
     if text == "پنل عضویت اجباری 🔗":
+        clear_user_state(context)
         keyboard = create_channel_panel_keyboard()
-        await update.message.reply_text("پنل عضویت اجباری 🔗\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید", reply_markup=keyboard)
+        await update.message.reply_text(
+            "پنل عضویت اجباری 🔗\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید",
+            reply_markup=keyboard
+        )
         return
 
     if text == "پنل ادمین 👥":
+        clear_user_state(context)
         keyboard = create_admin_management_keyboard()
-        await update.message.reply_text("پنل ادمین 👥\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید", reply_markup=keyboard)
+        await update.message.reply_text(
+            "پنل ادمین 👥\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید",
+            reply_markup=keyboard
+        )
         return
 
     if text == "پنل تنظیمات ⚙️":
+        clear_user_state(context)
         keyboard = create_settings_panel_keyboard()
-        await update.message.reply_text("پنل تنظیمات ⚙️\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید", reply_markup=keyboard)
+        await update.message.reply_text(
+            "پنل تنظیمات ⚙️\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید",
+            reply_markup=keyboard
+        )
         return
 
     if text == "بستن پنل ❌":
+        clear_user_state(context)
         keyboard = create_owner_keyboard()
-        await update.message.reply_text("پنل مدیریت بسته شد ✅", reply_markup=keyboard)
-        context.user_data.pop('admin_action', None)
+        await update.message.reply_text(
+            "پنل مدیریت بسته شد ✅",
+            reply_markup=keyboard
+        )
         return
 
     if text == "بازگشت ↩️":
+        clear_user_state(context)
         keyboard = create_admin_main_keyboard()
-        await update.message.reply_text("بازگشت به منوی اصلی ↩️", reply_markup=keyboard)
-        context.user_data.pop('admin_action', None)
+        await update.message.reply_text(
+            "بازگشت به منوی اصلی ↩️",
+            reply_markup=keyboard
+        )
         return
 
     # ===== زیرمجموعه پنل ریمیکس =====
     if text == "افزودن ریمیکس جدید ➕":
+        clear_user_state(context)
         context.user_data['admin_action'] = 'add_remix_code'
         await update.message.reply_text("افزودن ریمیکس جدید 📀\n\nلطفاً کد عددی ریمیکس را ارسال کنید\n(مثال: 15)")
         return
 
     if text == "حذف ریمیکس 🗑":
+        clear_user_state(context)
         context.user_data['admin_action'] = 'delete_remix'
         await update.message.reply_text("حذف ریمیکس 🗑\n\nلطفاً کد ریمیکس مورد نظر را وارد کنید")
         return
 
     # ===== زیرمجموعه پنل عضویت =====
     if text == "افزودن کانال عضویت ➕":
+        clear_user_state(context)
         context.user_data['admin_action'] = 'add_channel_link'
         await update.message.reply_text("افزودن کانال عضویت 🔗\n\nلطفاً لینک کانال را ارسال کنید\n(مثال: https://t.me/EDIT_41)")
         return
 
     if text == "حذف کانال عضویت 🗑":
+        clear_user_state(context)
         context.user_data['admin_action'] = 'remove_channel'
         channels = get_all_channels()
         if not channels:
@@ -382,6 +428,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "لیست کانال‌های عضویت 📋":
+        clear_user_state(context)
         channels = get_all_channels()
         if not channels:
             await update.message.reply_text("هیچ کانالی در دیتابیس وجود ندارد 📺")
@@ -399,11 +446,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ===== زیرمجموعه پنل ادمین =====
     if text == "افزودن ادمین ➕":
+        clear_user_state(context)
         context.user_data['admin_action'] = 'add_admin'
         await update.message.reply_text("افزودن ادمین 👥\n\nلطفاً آیدی عددی کاربر جدید را ارسال کنید\n(از @userinfobot بگیرید)")
         return
 
     if text == "حذف ادمین 🗑":
+        clear_user_state(context)
         context.user_data['admin_action'] = 'remove_admin'
         admins = get_all_admins()
         if not admins:
@@ -418,6 +467,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "لیست ادمین‌ها 📋":
+        clear_user_state(context)
         admins = get_all_admins()
         if not admins:
             await update.message.reply_text("هیچ ادمینی غیر از مالک وجود ندارد 👥")
@@ -431,17 +481,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # ===== زیرمجموعه پنل تنظیمات =====
     if text == "تنظیم نرخ تبلیغات 💰":
+        clear_user_state(context)
         context.user_data['admin_action'] = 'set_price'
         current_price = get_setting('ad_price_per_day') or "50000"
         await update.message.reply_text(f"تنظیم نرخ تبلیغات 💰\n\nنرخ فعلی: {current_price} تومان در روز\n\nلطفاً نرخ جدید را به تومان وارد کنید\n(مثال: 75000)")
         return
 
     if text == "تغییر رمز پنل 🔐":
+        clear_user_state(context)
         context.user_data['admin_action'] = 'change_password'
         await update.message.reply_text(f"تغییر رمز پنل 🔐\n\nرمز فعلی: {ADMIN_PANEL_PASSWORD}\n\nلطفاً رمز جدید (۴ رقمی) را وارد کنید")
         return
 
     if text == "آمار کامل 📊":
+        clear_user_state(context)
         stats = get_stats()
         msg = f"آمار کامل 📊\n\n👥 کل کاربران: {stats['total_users']}\n🎵 کل ریمیکس‌ها: {stats['total_remixes']}\n📥 کل دانلودها: {stats['total_downloads']}\n🔗 کانال‌های فعال: {stats['active_channels']}\n\n🏆 پربازدیدترین:\n"
         if stats['most_viewed']:
@@ -464,6 +517,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "بکاپ دیتابیس 💾":
+        clear_user_state(context)
         backup_name = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
         shutil.copy(DATABASE_NAME, backup_name)
 
@@ -508,8 +562,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 await update.message.reply_text("فایل ذخیره شد اما متادیتا اضافه نشد ⚠️")
 
-            for key in ['admin_action', 'new_remix_code', 'new_remix_title', 'new_remix_artist', 'new_remix_cover']:
-                context.user_data.pop(key, None)
+            clear_user_state(context)
         else:
             await update.message.reply_text("لطفاً یک فایل MP3 معتبر ارسال کنید ❌")
         return
@@ -608,11 +661,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ لطفاً یک فایل MP3 معتبر ارسال کنید")
         return
 
-    # ===== ادامه مدیریت سایر admin_actionها =====
-    if not action:
+    # ===== اگر هیچ کدام نبود =====
+    if not action and not user_action:
         return
 
-    # ===== افزودن ریمیکس (مراحل قبلی) =====
+    # ===== ادامه مدیریت سایر admin_actionها =====
     if action == 'add_remix_code':
         try:
             code = int(text.strip())
@@ -655,7 +708,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             remix = get_remix(code)
             if not remix:
                 await update.message.reply_text(f"ریمیکس با کد {code} یافت نشد ❌")
-                return            
+                return
+            
             file_path = remix[1]
             cover_path = remix[4]
             if os.path.exists(file_path):
@@ -911,6 +965,7 @@ async def handle_group_messages(update: Update, context: ContextTypes.DEFAULT_TY
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     if user_id == OWNER_ID or is_admin(user_id):
+        clear_user_state(context)
         keyboard = create_admin_main_keyboard()
         await update.message.reply_text(
             "پنل مدیریت 🔧\n\nلطفاً یکی از بخش‌های زیر را انتخاب کنید",
@@ -1059,11 +1114,16 @@ def main():
 
     app.add_handler(CallbackQueryHandler(callback_handler))
 
+    # ===== ترتیب هندلرها مهم است! =====
+    # 1. اول هندلر گروه خصوصی (ریپلای)
+    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, handle_group_messages))
+    
+    # 2. سپس هندلرهای اصلی
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.PHOTO, handle_message))
     app.add_handler(MessageHandler(filters.AUDIO, handle_message))
 
-    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, handle_group_messages))
+    # 3. هندلر خروج از کانال
     app.add_handler(MessageHandler(filters.StatusUpdate.LEFT_CHAT_MEMBER, handle_channel_leave))
 
     job_queue = app.job_queue
