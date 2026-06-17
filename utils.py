@@ -99,6 +99,7 @@ def create_vote_keyboard(remix_code, user_id):
 def create_user_keyboard():
     keyboard = [
         [KeyboardButton("ریمیکس تصادفی 🎲"), KeyboardButton("ریمیکس‌های برتر 🏆")],
+        [KeyboardButton("دریافت ریمیکس با کد 📥"), KeyboardButton("پیشنهاد آهنگ برای ادیت 📤")],
         [KeyboardButton("آمار ربات 📊"), KeyboardButton("راهنما ℹ️")]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -164,12 +165,18 @@ def check_user_in_channel(user_id, channel_link, bot):
             chat_username = channel_link.replace("@", "")
         
         if not chat_username:
+            logger.warning(f"❌ Invalid channel link: {channel_link}")
             return False
         
+        logger.info(f"🔍 Checking membership for {user_id} in @{chat_username}")
+        
         chat_member = bot.get_chat_member(chat_id=f"@{chat_username}", user_id=user_id)
-        return chat_member.status in ["member", "administrator", "creator"]
+        status = chat_member.status
+        logger.info(f"📊 User status: {status}")
+        
+        return status in ["member", "administrator", "creator"]
     except Exception as e:
-        print(f"Error checking membership: {e}")
+        logger.error(f"❌ Error checking membership: {e}")
         return False
 
 def check_all_memberships(user_id, channels, bot):

@@ -9,6 +9,7 @@ def init_db():
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     
+    # جدول ریمیکس‌ها
     c.execute('''CREATE TABLE IF NOT EXISTS remixes (
         code INTEGER PRIMARY KEY,
         file_path TEXT NOT NULL,
@@ -21,6 +22,7 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # جدول کانال‌های عضویت اجباری
     c.execute('''CREATE TABLE IF NOT EXISTS required_channels (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         channel_link TEXT NOT NULL,
@@ -30,12 +32,14 @@ def init_db():
         is_permanent INTEGER DEFAULT 0
     )''')
     
+    # جدول ادمین‌ها
     c.execute('''CREATE TABLE IF NOT EXISTS admins (
         user_id INTEGER PRIMARY KEY,
         added_by INTEGER,
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # جدول کاربران و ریمیکس‌های دریافت شده
     c.execute('''CREATE TABLE IF NOT EXISTS user_remixes (
         user_id INTEGER,
         remix_code INTEGER,
@@ -43,6 +47,7 @@ def init_db():
         PRIMARY KEY (user_id, remix_code)
     )''')
     
+    # جدول رای‌ها
     c.execute('''CREATE TABLE IF NOT EXISTS remix_votes (
         user_id INTEGER,
         remix_code INTEGER,
@@ -51,6 +56,7 @@ def init_db():
         PRIMARY KEY (user_id, remix_code)
     )''')
     
+    # جدول کاربران
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY,
         username TEXT,
@@ -58,23 +64,38 @@ def init_db():
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # جدول دعوت‌ها
     c.execute('''CREATE TABLE IF NOT EXISTS referrals (
         referrer_id INTEGER,
         referred_id INTEGER PRIMARY KEY,
         referred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # جدول پاداش دعوت
     c.execute('''CREATE TABLE IF NOT EXISTS referral_rewards (
         user_id INTEGER PRIMARY KEY,
         reward_active_until TIMESTAMP,
         reward_type TEXT
     )''')
     
+    # جدول تنظیمات
     c.execute('''CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
     )''')
     
+    # ===== جدول جدید: درخواست‌های آهنگ =====
+    c.execute('''CREATE TABLE IF NOT EXISTS song_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        file_id TEXT,
+        file_name TEXT,
+        status TEXT DEFAULT 'pending',
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, requested_at)
+    )''')
+    
+    # تنظیمات پیش‌فرض
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('ad_price_per_day', ?)", (str(AD_PRICE_PER_DAY),))
     
     # افزودن کانال اصلی به عنوان عضویت دائمی
@@ -85,6 +106,10 @@ def init_db():
     conn.commit()
     conn.close()
 
+
+# ============================================================
+# توابع ریمیکس
+# ============================================================
 def add_remix(code, file_path, title, artist, cover_path):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -153,6 +178,10 @@ def get_random_remix():
     conn.close()
     return result
 
+
+# ============================================================
+# توابع رای‌دهی
+# ============================================================
 def get_user_vote(user_id, remix_code):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -189,8 +218,11 @@ def set_user_vote(user_id, remix_code, vote):
     conn.commit()
     conn.close()
 
+
+# ============================================================
+# توابع کانال‌های عضویت
+# ============================================================
 def add_channel(channel_link, display_name, days):
-    # بررسی وجود کانال تکراری فعال
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     c.execute("SELECT id FROM required_channels WHERE channel_link = ? AND is_active = 1 AND (expires_at IS NULL OR expires_at > datetime('now'))", (channel_link,))
@@ -210,7 +242,6 @@ def remove_channel(channel_id, is_owner=False):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
     
-    # بررسی دائمی بودن کانال
     c.execute("SELECT is_permanent FROM required_channels WHERE id = ?", (channel_id,))
     result = c.fetchone()
     if result and result[0] == 1 and not is_owner:
@@ -245,6 +276,10 @@ def get_all_channels():
     conn.close()
     return results
 
+
+# ============================================================
+# توابع ادمین
+# ============================================================
 def add_admin(user_id, added_by):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -275,6 +310,10 @@ def get_all_admins():
     conn.close()
     return [r[0] for r in results]
 
+
+# ============================================================
+# توابع کاربران
+# ============================================================
 def add_user(user_id, username, first_name):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -314,6 +353,10 @@ def get_total_remix_downloads():
     conn.close()
     return result[0] if result else 0
 
+
+# ============================================================
+# توابع دعوت دوستان
+# ============================================================
 def get_user_referral_code(user_id):
     return f"REF_{user_id}"
 
@@ -356,6 +399,10 @@ def check_and_activate_referral_rewards(user_id):
         return True
     return False
 
+
+# ============================================================
+# توابع آمار
+# ============================================================
 def get_stats():
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -389,6 +436,10 @@ def get_stats():
         'active_channels': active_channels
     }
 
+
+# ============================================================
+# توابع تنظیمات
+# ============================================================
 def get_setting(key):
     conn = sqlite3.connect(DATABASE_NAME)
     c = conn.cursor()
@@ -403,3 +454,23 @@ def set_setting(key, value):
     c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
     conn.close()
+
+
+# ============================================================
+# توابع درخواست آهنگ (جدید)
+# ============================================================
+def add_song_request(user_id, file_id, file_name):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO song_requests (user_id, file_id, file_name) VALUES (?, ?, ?)",
+              (user_id, file_id, file_name))
+    conn.commit()
+    conn.close()
+
+def get_last_song_request(user_id):
+    conn = sqlite3.connect(DATABASE_NAME)
+    c = conn.cursor()
+    c.execute("SELECT requested_at FROM song_requests WHERE user_id = ? ORDER BY requested_at DESC LIMIT 1", (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return result[0] if result else None
