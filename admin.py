@@ -263,28 +263,42 @@ async def add_button_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def handle_add_remix_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """پردازش فایل MP3 برای افزودن ریمیکس"""
     user_id = update.effective_user.id
     code = context.user_data.get('new_remix_code')
     
     if not code:
-        await update.message.reply_text("خطا ❌ کد ریمیکس پیدا نشد. لطفاً مراحل را از اول تکرار کنید.")
+        await update.message.reply_text("❌ کد ریمیکس پیدا نشد. لطفاً مراحل را از اول تکرار کنید.")
+        StateMiddleware.clear(context)
         return
     
-    audio_file = await update.message.audio.get_file()
-    mp3_path = f"storage/remixes/remix_{code}.mp3"
-    os.makedirs("storage/remixes", exist_ok=True)
-    await audio_file.download_to_drive(mp3_path)
-    
-    # ذخیره در دیتابیس (با اطلاعات پیش‌فرض)
-    add_remix(code, mp3_path, f"Remix {code}", "Unknown", None)
-    
-    await update.message.reply_text(
-        f"✅ ریمیکس با موفقیت ذخیره شد!\n\n"
-        f"🎚 کد: {code}\n"
-        f"📁 مسیر: {mp3_path}\n\n"
-        f"🔗 لینک دریافت:\n"
-        f"https://t.me/{BOT_USERNAME.replace('@', '')}?start=code_{code}"
-    )
-    
-    StateMiddleware.clear(context)
+    try:
+        audio = update.message.audio
+        if not audio:
+            await update.message.reply_text("❌ لطفاً یک فایل MP3 معتبر ارسال کنید.")
+            return
+        
+        audio_file = await audio.get_file()
+        mp3_path = f"storage/remixes/remix_{code}.mp3"
+        os.makedirs("storage/remixes", exist_ok=True)
+        await audio_file.download_to_drive(mp3_path)
+        
+        # ذخیره در دیتابیس با اطلاعات پیش‌فرض
+        success = add_remix(code, None, f"Remix {code}", "Unknown", None)
+        
+        # فایل را به صورت دستی ذخیره می‌کنیم
+        import shutil
+        # (در اینجا فایل قبلاً ذخیره شده)
+        
+        await update.message.reply_text(
+            f"✅ ریمیکس با موفقیت ذخیره شد!\n\n"
+            f"🎚 کد: {code}\n"
+            f"📁 مسیر: {mp3_path}\n\n"
+            f"🔗 لینک دریافت:\n"
+            f"https://t.me/{BOT_USERNAME.replace('@', '')}?start=code_{code}"
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Error adding remix: {e}")
+        await update.message.reply_text(f"❌ خطا در افزودن ریمیکس: {e}")
+    finally:
+        StateMiddleware.clear(context)

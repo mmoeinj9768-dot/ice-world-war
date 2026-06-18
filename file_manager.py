@@ -19,21 +19,27 @@ def ensure_directories():
     logger.info("✅ Directories created")
 
 
-def save_remix_file(file, code: int, ext: str) -> str:
-    """ذخیره فایل ریمیکس"""
-    # ایجاد نام فایل یکتا با UUID
-    unique_id = uuid.uuid4().hex[:8]
-    filename = f"remix_{code}_{unique_id}.{ext}"
+def save_remix_file(file, code: int, ext: str) -> Optional[str]:
+    """ذخیره فایل ریمیکس با بررسی None"""
+    if file is None:
+        logger.warning(f"⚠️ File is None for code {code}")
+        return None
     
-    if ext == "mp3":
-        path = os.path.join(REMIXES_PATH, filename)
-    else:
-        path = os.path.join(COVERS_PATH, filename)
-    
-    # دانلود فایل
-    file.download_to_drive(path)
-    logger.info(f"✅ File saved: {path}")
-    return path
+    try:
+        unique_id = uuid.uuid4().hex[:8]
+        filename = f"remix_{code}_{unique_id}.{ext}"
+        
+        if ext == "mp3":
+            path = os.path.join(REMIXES_PATH, filename)
+        else:
+            path = os.path.join(COVERS_PATH, filename)
+        
+        file.download_to_drive(path)
+        logger.info(f"✅ File saved: {path}")
+        return path
+    except Exception as e:
+        logger.error(f"❌ Error saving file: {e}")
+        return None
 
 
 def delete_remix_file(path: str) -> bool:

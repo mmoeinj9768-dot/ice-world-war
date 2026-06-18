@@ -24,16 +24,16 @@ logger = get_logger(__name__)
 
 
 def add_remix(code: int, file, title: str, artist: str, cover) -> bool:
-    """افزودن ریمیکس جدید"""
     try:
-        # ذخیره فایل‌ها
         mp3_path = save_remix_file(file, code, "mp3")
+        if mp3_path is None:
+            logger.error(f"❌ Failed to save MP3 for code {code}")
+            return False
+        
         cover_path = save_remix_file(cover, code, "jpg") if cover else None
         
-        # ذخیره در دیتابیس
-        repo_add_remix(code, mp3_path, title, artist, cover_path)
+        repo_add_remix(code, mp3_path, title or f"Remix {code}", artist or "Unknown", cover_path)
         
-        # پاک کردن کش
         CacheManager.invalidate("remix_list")
         CacheManager.invalidate("remix_stats")
         
