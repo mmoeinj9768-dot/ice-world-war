@@ -163,8 +163,10 @@ async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if not is_member:
             context.user_data['pending_remix'] = remix_code
+            logger.info(f"✅ pending_remix set to {remix_code} for user {user_id}")
+            
             keyboard = create_membership_keyboard(channels)
-            text = f"🎵 دریافت ریمیکس\n\nکاربر {username} عزیز ❤️\n\nبرای دریافت نسخه کامل ريمیکس، ابتدا در کانال‌های زیر عضو شوید و سپس روی گزینه «عضو شدم ✅» ضربه بزنید\n\nپس از تأیید عضویت، فایل به صورت خودکار ارسال خواهد شد 🎧🔥"
+            text = f"🎵 دریافت ریمیکس\n\nکاربر {username} عزیز ❤️\n\nبرای دریافت نسخه کامل ریمیکس، ابتدا در کانال‌های زیر عضو شوید و سپس روی گزینه «عضو شدم ✅» ضربه بزنید\n\nپس از تأیید عضویت، فایل به صورت خودکار ارسال خواهد شد 🎧🔥"
             await update.message.reply_text(text, reply_markup=keyboard)
             return
 
@@ -201,7 +203,7 @@ async def check_and_send_remix(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 # ============================================================
-# تابع Callback Handler (اصلاح شده)
+# تابع Callback Handler (اصلاح شده کامل)
 # ============================================================
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -209,19 +211,23 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
-    logger.info(f"📩 Callback: {data} from {user_id}")
+    logger.info(f"📩 Callback received: data={data}, user_id={user_id}")
 
+    # ===== دکمه «عضو شدم ✅» =====
     if data == "check_membership":
-        logger.info(f"✅ check_membership called for user {user_id}")
+        logger.info(f"✅ check_membership detected for user {user_id}")
         
         remix_code = context.user_data.get('pending_remix')
+        logger.info(f"🔍 pending_remix value: {remix_code}")
+        
         if not remix_code:
-            await query.edit_message_text("خطا ❌ لطفاً دوباره از لینک وارد شوید")
+            await query.edit_message_text("❌ خطا! لطفاً دوباره از لینک وارد شوید.")
             return
 
         deactivate_expired_channels()
         channels = get_active_channels()
         
+        # حذف کانال‌های تکراری
         seen = set()
         unique_channels = []
         for ch in channels:
@@ -237,7 +243,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for channel_id, channel_link, display_name in channels:
                 if not check_user_in_channel(user_id, channel_link, context.bot):
                     is_member = False
-                    logger.info(f"❌ User not in channel: {channel_link}")
+                    logger.info(f"❌ User {user_id} not in channel: {channel_link}")
                     break
 
         if not is_member:
@@ -278,8 +284,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(user_id, "ریمیکس یافت نشد ❌")
 
         context.user_data.pop('pending_remix', None)
+        logger.info(f"✅ pending_remix cleared for user {user_id}")
         return
 
+    # ===== دکمه‌های رأی =====
     if data.startswith("vote_"):
         parts = data.split("_")
         remix_code = int(parts[1])
@@ -844,7 +852,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             logger.info(f"✅ Remix {code} saved and button added to post {message_id}")
         except Exception as e:
-            await update.message.reply_text(f"❌ ریمیکس ذخیره شد اما خطا در افزودن دکمه:\n{e}\n\nمطمئن شوید ربات در کانال ادمین است و دسترسی ویرایش پیام دارد")
+            if "Message is not modified" in str(e):
+                await update.message.reply_text(
+                    f"ℹ️ دکمه قبلاً زیر این پست اضافه شده بود.\n\n"
+                    f"🎚 کد: {code}\n"
+                    f"🔗 پست: {link}"
+                )
+            else:
+                await update.message.reply_text(f"❌ ریمیکس ذخیره شد اما خطا در افزودن دکمه:\n{e}\n\nمطمئن شوید ربات در کانال ادمین است و دسترسی ویرایش پیام دارد")
         
         context.user_data.pop('admin_action', None)
         context.user_data.pop('new_remix_code', None)
@@ -985,7 +1000,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"دکمه با موفقیت اضافه شد ✅\n\n🔗 پست: {link}\n🎚 کد ریمیکس: {code}\n\n🔗 لینک دکمه: {button_url}"
                 )
             except Exception as e:
-                await update.message.reply_text(f"خطا در افزودن دکمه ❌ {e}\n\nمطمئن شوید ربات در کانال ادمین است و دسترسی ویرایش پیام دارد")
+                if "Message is not modified" in str(e):
+                    await update.message.reply_text(
+                        f"ℹ️ دکمه قبلاً زیر این پست اضافه شده بود.\n\n"
+                        f"🎚 کد: {code}\n"
+                        f"🔗 پست: {link}"
+                    )
+                else:
+                    await update.message.reply_text(f"خطا در افزودن دکمه ❌ {e}\n\nمطمئن شوید ربات در کانال ادمین است و دسترسی ویرایش پیام دارد")
 
             context.user_data.pop('pending_button_link', None)
             context.user_data.pop('admin_action', None)
@@ -1207,7 +1229,14 @@ async def add_button_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f"دکمه با موفقیت اضافه شد ✅\n\n🔗 پست: {link}\n🎚 کد ریمیکس: {code}\n\n🔗 لینک دکمه: {button_url}"
             )
         except Exception as e:
-            await update.message.reply_text(f"خطا در افزودن دکمه ❌ {e}\n\nمطمئن شوید ربات در کانال ادمین است و دسترسی ویرایش پیام دارد")
+            if "Message is not modified" in str(e):
+                await update.message.reply_text(
+                    f"ℹ️ دکمه قبلاً زیر این پست اضافه شده بود.\n\n"
+                    f"🎚 کد: {code}\n"
+                    f"🔗 پست: {link}"
+                )
+            else:
+                await update.message.reply_text(f"خطا در افزودن دکمه ❌ {e}\n\nمطمئن شوید ربات در کانال ادمین است و دسترسی ویرایش پیام دارد")
             
     except ValueError:
         await update.message.reply_text("کد ریمیکس باید یک عدد باشد ❌")

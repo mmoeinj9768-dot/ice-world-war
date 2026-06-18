@@ -61,10 +61,12 @@ def create_referral_link(user_id):
     return f"https://t.me/{BOT_USERNAME.replace('@', '')}?start=ref_{user_id}"
 
 def create_membership_keyboard(channels):
+    """ساخت دکمه‌های عضویت اجباری - با callback_data صحیح"""
     keyboard = []
     for channel_id, channel_link, display_name in channels:
         keyboard.append([InlineKeyboardButton(f"عضویت {display_name} 🔰", url=channel_link)])
     
+    # ===== این خط مهم است =====
     keyboard.append([InlineKeyboardButton("عضو شدم ✅", callback_data="check_membership")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -149,9 +151,6 @@ def create_settings_panel_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-# ============================================================
-# کیبوردهای وضعیت قابلیت‌ها
-# ============================================================
 def create_feature_status_keyboard():
     keyboard = [
         [KeyboardButton("خاموش کردن قابلیت 🛑")],
