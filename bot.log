@@ -1,0 +1,208 @@
+2026-06-18 23:20:00,181 - bot - INFO - ✅ Logger initialized
+2026-06-18 23:20:00,181 - bot - INFO - 🚀 Starting EDIT 41 Bot...
+2026-06-18 23:20:00,184 - bot.utils.file_manager - INFO - ✅ Directories created
+2026-06-18 23:20:00,185 - bot - INFO - ✅ Directories created
+2026-06-18 23:20:00,185 - bot.utils.cache - INFO - ✅ Cache initialized
+2026-06-18 23:20:00,186 - bot - INFO - ✅ Cache initialized
+2026-06-18 23:20:00,265 - bot.database.db - INFO - ✅ Database connection established
+2026-06-18 23:20:00,299 - bot.database.db - INFO - ✅ Database initialized successfully
+2026-06-18 23:20:00,300 - bot - INFO - ✅ Database initialized
+2026-06-18 23:20:00,577 - bot.core.app - INFO - ✅ Application created successfully
+2026-06-18 23:20:00,578 - bot - INFO - ✅ Application created
+2026-06-18 23:20:00,659 - bot - ERROR - ❌ Handler registration error: cannot import name 'get_active_channels' from 'database.db' (/storage/emulated/0/Edit 41 bot/database/db.py)
+2026-06-18 23:21:29,676 - bot - INFO - ✅ Logger initialized
+2026-06-18 23:21:29,677 - bot - INFO - 🚀 Starting EDIT 41 Bot...
+2026-06-18 23:21:29,679 - bot.utils.file_manager - INFO - ✅ Directories created
+2026-06-18 23:21:29,679 - bot - INFO - ✅ Directories created
+2026-06-18 23:21:29,680 - bot.utils.cache - INFO - ✅ Cache initialized
+2026-06-18 23:21:29,680 - bot - INFO - ✅ Cache initialized
+2026-06-18 23:21:29,707 - bot.database.db - INFO - ✅ Database connection established
+2026-06-18 23:21:29,712 - bot.database.db - INFO - ✅ Database initialized successfully
+2026-06-18 23:21:29,713 - bot - INFO - ✅ Database initialized
+2026-06-18 23:21:29,910 - bot.core.app - INFO - ✅ Application created successfully
+2026-06-18 23:21:29,910 - bot - INFO - ✅ Application created
+2026-06-18 23:21:29,929 - bot - ERROR - ❌ Handler registration error: cannot import name 'get_active_channels' from 'database.db' (/storage/emulated/0/Edit 41 bot/database/db.py)
+2026-06-18 23:25:06,425 - bot - INFO - ✅ Logger initialized
+2026-06-18 23:25:06,426 - bot - INFO - 🚀 Starting EDIT 41 Bot...
+2026-06-18 23:25:06,429 - bot.utils.file_manager - INFO - ✅ Directories created
+2026-06-18 23:25:06,429 - bot - INFO - ✅ Directories created
+2026-06-18 23:25:06,429 - bot.utils.cache - INFO - ✅ Cache initialized
+2026-06-18 23:25:06,429 - bot - INFO - ✅ Cache initialized
+2026-06-18 23:25:06,456 - bot.database.db - INFO - ✅ Database connection established
+2026-06-18 23:25:06,464 - bot.database.db - INFO - ✅ Database initialized successfully
+2026-06-18 23:25:06,464 - bot - INFO - ✅ Database initialized
+2026-06-18 23:25:06,705 - bot.core.app - INFO - ✅ Application created successfully
+2026-06-18 23:25:06,706 - bot - INFO - ✅ Application created
+2026-06-18 23:25:06,725 - bot - ERROR - ❌ Handler registration error: cannot import name 'get_active_channels' from 'database.db' (/storage/emulated/0/Edit 41 bot/database/db.py)
+2026-06-18 23:26:08,810 - bot - INFO - ✅ Logger initialized
+2026-06-18 23:26:08,810 - bot - INFO - 🚀 Starting EDIT 41 Bot...
+2026-06-18 23:26:08,811 - bot.utils.file_manager - INFO - ✅ Directories created
+2026-06-18 23:26:08,812 - bot - INFO - ✅ Directories created
+2026-06-18 23:26:08,812 - bot.utils.cache - INFO - ✅ Cache initialized
+2026-06-18 23:26:08,812 - bot - INFO - ✅ Cache initialized
+2026-06-18 23:26:08,826 - bot.database.db - INFO - ✅ Database connection established
+2026-06-18 23:26:08,828 - bot.database.db - INFO - ✅ Database initialized successfully
+2026-06-18 23:26:08,828 - bot - INFO - ✅ Database initialized
+2026-06-18 23:26:08,941 - bot.core.app - INFO - ✅ Application created successfully
+2026-06-18 23:26:08,941 - bot - INFO - ✅ Application created
+2026-06-18 23:26:08,946 - bot - ERROR - ❌ Handler registration error: cannot import name 'get_active_channels' from 'database.db' (/storage/emulated/0/Edit 41 bot/database/db.py)
+2026-06-18 23:27:31,954 - bot - INFO - ✅ Logger initialized
+2026-06-18 23:27:31,956 - bot - INFO - 🚀 Starting EDIT 41 Bot...
+2026-06-18 23:27:31,959 - bot.utils.file_manager - INFO - ✅ Directories created
+2026-06-18 23:27:31,960 - bot - INFO - ✅ Directories created
+2026-06-18 23:27:31,960 - bot.utils.cache - INFO - ✅ Cache initialized
+2026-06-18 23:27:31,960 - bot - INFO - ✅ Cache initialized
+2026-06-18 23:27:31,994 - bot.database.db - INFO - ✅ Database connection established
+2026-06-18 23:27:31,997 - bot.database.db - INFO - ✅ Database initialized successfully
+2026-06-18 23:27:31,997 - bot - INFO - ✅ Database initialized
+2026-06-18 23:27:32,202 - bot.core.app - INFO - ✅ Application created successfully
+2026-06-18 23:27:32,202 - bot - INFO - ✅ Application created
+2026-06-18 23:27:32,298 - bot - ERROR - ❌ Handler registration error: cannot import name 'get_all_features' from 'database.db' (/storage/emulated/0/Edit 41 bot/database/db.py)
+2026-06-18 23:31:05,276 - bot - INFO - ✅ Logger initialized
+2026-06-18 23:31:05,277 - bot - INFO - 🚀 Starting EDIT 41 Bot...
+2026-06-18 23:31:05,279 - bot.utils.file_manager - INFO - ✅ Directories created
+2026-06-18 23:31:05,279 - bot - INFO - ✅ Directories created
+2026-06-18 23:31:05,279 - bot.utils.cache - INFO - ✅ Cache initialized
+2026-06-18 23:31:05,280 - bot - INFO - ✅ Cache initialized
+2026-06-18 23:31:05,307 - bot.database.db - INFO - ✅ Database connection established
+2026-06-18 23:31:05,312 - bot.database.db - INFO - ✅ Database initialized successfully
+2026-06-18 23:31:05,313 - bot - INFO - ✅ Database initialized
+2026-06-18 23:31:05,499 - bot.core.app - INFO - ✅ Application created successfully
+2026-06-18 23:31:05,499 - bot - INFO - ✅ Application created
+2026-06-18 23:31:05,593 - bot.core.app - INFO - ✅ All handlers registered
+2026-06-18 23:31:05,593 - bot - INFO - ✅ Handlers registered
+2026-06-18 23:31:05,593 - bot - WARNING - ⚠️ JobQueue not available! Jobs will not run.
+2026-06-18 23:31:05,594 - bot - INFO - 🤖 Bot @EDIT_41_BOT is running...
+2026-06-18 23:32:01,578 - telegram.ext - ERROR - Network Retry Loop (Bootstrap Initialize Application): Timed out: Timed out. Failed run number 0 of 0. Aborting.
+Traceback (most recent call last):
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_transports/default.py", line 101, in map_httpcore_exceptions
+    yield
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_transports/default.py", line 394, in handle_async_request
+    resp = await self._pool.handle_async_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpcore/_async/connection_pool.py", line 256, in handle_async_request
+    raise exc from None
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpcore/_async/connection_pool.py", line 236, in handle_async_request
+    response = await connection.handle_async_request(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        pool_request.request
+        ^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpcore/_async/connection.py", line 101, in handle_async_request
+    raise exc
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpcore/_async/connection.py", line 78, in handle_async_request
+    stream = await self._connect(request)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpcore/_async/connection.py", line 156, in _connect
+    stream = await stream.start_tls(**kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpcore/_backends/anyio.py", line 67, in start_tls
+    with map_exceptions(exc_map):
+         ~~~~~~~~~~~~~~^^^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpcore/_exceptions.py", line 14, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore.ConnectTimeout
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/request/_httpxrequest.py", line 279, in do_request
+    res = await self._client.request(
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_client.py", line 1540, in request
+    return await self.send(request, auth=auth, follow_redirects=follow_redirects)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_client.py", line 1629, in send
+    response = await self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_client.py", line 1657, in _send_handling_auth
+    response = await self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_client.py", line 1694, in _send_handling_redirects
+    response = await self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_client.py", line 1730, in _send_single_request
+    response = await transport.handle_async_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_transports/default.py", line 393, in handle_async_request
+    with map_httpcore_exceptions():
+         ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/httpx/_transports/default.py", line 118, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx.ConnectTimeout
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/ext/_utils/networkloop.py", line 161, in network_retry_loop
+    await do_action()
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/ext/_utils/networkloop.py", line 136, in do_action
+    await action_cb()
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/ext/_application.py", line 489, in initialize
+    await self.bot.initialize()
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/ext/_extbot.py", line 316, in initialize
+    await super().initialize()
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/_bot.py", line 857, in initialize
+    await self.get_me()
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/ext/_extbot.py", line 2008, in get_me
+    return await super().get_me(
+           ^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/_bot.py", line 990, in get_me
+    result = await self._post(
+             ^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/_bot.py", line 704, in _post
+    return await self._do_post(
+           ^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/ext/_extbot.py", line 370, in _do_post
+    return await super()._do_post(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/_bot.py", line 733, in _do_post
+    result = await request.post(
+             ^^^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/request/_baserequest.py", line 198, in post
+    result = await self._request_wrapper(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/request/_baserequest.py", line 305, in _request_wrapper
+    code, payload = await self.do_request(
+                    ^^^^^^^^^^^^^^^^^^^^^^
+    ...<7 lines>...
+    )
+    ^
+  File "/data/user/0/ru.iiec.pydroid3/files/aarch64-linux-android/lib/python3.13/site-packages/telegram/request/_httpxrequest.py", line 296, in do_request
+    raise TimedOut from err
+telegram.error.TimedOut: Timed out
+2026-06-18 23:32:01,707 - bot - ERROR - ❌ Fatal error: Timed out
