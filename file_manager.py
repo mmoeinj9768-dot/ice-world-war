@@ -3,6 +3,7 @@
 
 import os
 import uuid
+from typing import Optional
 from pathlib import Path
 from config import REMIXES_PATH, COVERS_PATH, STORAGE_PATH
 from utils.logger import get_logger

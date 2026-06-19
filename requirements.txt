@@ -2,7 +2,7 @@
 # کتابخانه‌های اصلی
 # ============================================================
 
-python-telegram-bot>=20.0
+python-telegram-bot[job-queue]>=20.0
 python-dotenv>=1.0.0
 cachetools>=5.3.0
 
